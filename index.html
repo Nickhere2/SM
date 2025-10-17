@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sueños Mágicos - Gestor Financiero</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-dayjs@1.1.2/dist/chartjs-adapter-dayjs.bundle.min.js"></script>
+    <script>
+        dayjs.extend(dayjs_plugin_utc);
+        dayjs.extend(dayjs_plugin_timezone);
+        dayjs.extend(dayjs_plugin_customParseFormat);
+        dayjs.tz.setDefault("America/Argentina/Buenos_Aires");
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Fredoka+One&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f7f8fa;
+            --sidebar-bg: #ffffff;
+            --card-bg: #ffffff;
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+            padding: 1.5rem;
+            transition: box-shadow 0.3s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08);
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            background-color: #f3f4f6;
+            color: var(--text-primary);
+        }
+        .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+        }
+        .nav-link i {
+            width: 20px;
+            margin-right: 1rem;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(17, 24, 39, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+        .modal-backdrop.active .modal-content {
+            transform: translateY(0);
+        }
+        .progress-bar {
+            background-color: var(--border-color);
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 9999px;
+            transition: width 0.5s ease-in-out;
+        }
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            font-weight: 600;
+            color: var(--text-secondary);
+            transition: all 0.2s ease-in-out;
+        }
+        .tab-btn:hover {
+             background-color: #f3f4f6;
+        }
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            border-radius: 8px 8px 0 0;
+        }
+        .table-header {
+             border-bottom: 2px solid var(--border-color);
+        }
+        #logo-container {
+            font-family: 'Fredoka One', cursive;
+        }
+        #logo-container span {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 1px;
+            border-radius: 4px;
+            line-height: 1.5;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+<div class="flex h-screen bg-gray-100">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-sidebar-bg shadow-lg flex-shrink-0 flex flex-col" style="background-color: var(--sidebar-bg);">
+        <div class="p-5 border-b border-[var(--border-color)]">
+             <div id="logo-container" class="font-bold text-xl text-white text-center">
+                <div class="flex justify-center -mb-1">
+                    <span class="logo-s">S</span><span class="logo-u">U</span><span class="logo-e">E</span><span class="logo-n">Ñ</span><span class="logo-o">O</span><span class="logo-s2">S</span>
+                </div>
+                <div class="flex justify-center">
+                    <span class="logo-m">M</span><span class="logo-a">Á</span><span class="logo-g">G</span><span class="logo-i">I</span><span class="logo-c">C</span><span class="logo-o2">O</span><span class="logo-s3">S</span>
+                </div>
+            </div>
+        </div>
+        <nav class="mt-6 p-4 flex-grow">
+            <a href="#" id="nav-dashboard" class="nav-link active">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Panel Principal</span>
+            </a>
+            <a href="#" id="nav-transactions" class="nav-link mt-2">
+                <i class="fas fa-exchange-alt"></i>
+                <span>Transacciones</span>
+            </a>
+            <a href="#" id="nav-reports" class="nav-link mt-2">
+                <i class="fas fa-chart-pie"></i>
+                <span>Informes</span>
+            </a>
+            <a href="#" id="nav-settings" class="nav-link mt-2">
+                <i class="fas fa-cog"></i>
+                <span>Configuración</span>
+            </a>
+        </nav>
+        <div class="p-4 border-t border-[var(--border-color)]">
+             <div id="user-info" class="p-3 bg-indigo-50 text-indigo-800 rounded-lg text-sm hidden">
+                 <p class="font-semibold">ID de Usuario:</p>
+                <code id="user-id" class="bg-indigo-100 text-xs p-1 rounded break-all"></code>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+        
+        <!-- View: Dashboard -->
+        <div id="dashboard-view">
+             <header class="mb-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Panel Principal</h1>
+                    <p class="text-gray-500">Resumen general de tus finanzas.</p>
+                </div>
+                <button id="add-transaction-btn" class="btn-primary w-full md:w-auto">
+                    <i class="fas fa-plus mr-2"></i>Añadir Transacción
+                </button>
+            </header>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+                <div class="card sm:col-span-2 lg:col-span-1">
+                    <h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-balance-scale mr-2 text-gray-400"></i>Balance Total</h3>
+                    <p id="balance" class="text-3xl font-bold text-gray-800 mt-2">$0.00</p>
+                </div>
+                <div class="card">
+                    <h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-arrow-up mr-2 text-green-400"></i>Ingresos</h3>
+                    <p id="total-income" class="text-2xl font-semibold mt-2 text-green-600">$0.00</p>
+                </div>
+                <div class="card">
+                    <h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-arrow-down mr-2 text-red-400"></i>Egresos</h3>
+                    <p id="total-expense" class="text-2xl font-semibold mt-2 text-red-600">$0.00</p>
+                </div>
+                <div class="card">
+                    <h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-hourglass-half mr-2 text-yellow-400"></i>A Cobrar</h3>
+                    <p id="total-receivable" class="text-2xl font-semibold mt-2 text-yellow-600">$0.00</p>
+                </div>
+                <div class="card">
+                    <h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-file-invoice-dollar mr-2 text-orange-400"></i>A Pagar</h3>
+                    <p id="total-payable" class="text-2xl font-semibold mt-2 text-orange-600">$0.00</p>
+                </div>
+            </div>
+
+            <div class="card mb-6">
+                <div class="flex items-center space-x-4">
+                    <label for="dashboard-period-filter" class="text-sm font-medium text-gray-600">Mostrar gráficos de:</label>
+                    <select id="dashboard-period-filter" class="block border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="currentMonth">Este Mes</option>
+                        <option value="lastMonth">Mes Pasado</option>
+                        <option value="currentYear">Este Año</option>
+                        <option value="allTime">Todo</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="card">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Egresos por Categoría</h3>
+                    <div class="h-80 flex items-center justify-center">
+                        <canvas id="dashboardExpensesChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Resumen Mensual</h3>
+                    <div class="h-80 flex items-center justify-center">
+                         <canvas id="dashboardMonthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dashboard-budgets-summary" class="card">
+                 <h3 class="text-lg font-semibold text-gray-700 mb-4">Resumen de Presupuestos (Mes Actual)</h3>
+                 <div id="budgets-summary-list" class="space-y-4">
+                     <p class="text-gray-500">No has definido presupuestos. Ve a Configuración > Presupuestos para empezar.</p>
+                 </div>
+            </div>
+        </div>
+
+        <!-- View: Transactions -->
+        <div id="transactions-view" class="hidden">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Transacciones</h1>
+            <p class="text-gray-500 mb-6">Busca y gestiona todos tus movimientos.</p>
+            <div class="card mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label for="filter-start-date" class="text-sm font-medium">Fecha Desde</label>
+                        <input type="date" id="filter-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="filter-end-date" class="text-sm font-medium">Fecha Hasta</label>
+                        <input type="date" id="filter-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="filter-type" class="text-sm font-medium">Tipo</label>
+                        <select id="filter-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="">Todos</option>
+                            <option value="Ingreso">Ingreso</option>
+                            <option value="Egreso">Egreso</option>
+                            <option value="A Cobrar">A Cobrar</option>
+                            <option value="A Pagar">A Pagar</option>
+                        </select>
+                    </div>
+                    <div>
+                         <label for="filter-category" class="text-sm font-medium">Categoría</label>
+                        <select id="filter-category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+             <div class="card">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 table-header">
+                            <tr>
+                                <th class="px-6 py-3">Fecha</th>
+                                <th class="px-6 py-3">Descripción</th>
+                                <th class="px-6 py-3">Categoría</th>
+                                <th class="px-6 py-3">Tipo</th>
+                                <th class="px-6 py-3 text-right">Monto</th>
+                                <th class="px-6 py-3 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-table"></tbody>
+                    </table>
+                    <p id="no-transactions" class="text-center text-gray-500 py-8">No hay transacciones que coincidan con los filtros.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Reports -->
+        <div id="reports-view" class="hidden">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Informes</h1>
+            <p class="text-gray-500 mb-6">Analiza tus datos financieros con filtros personalizados.</p>
+             <div class="card mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label for="reports-start-date" class="text-sm font-medium">Fecha Desde</label>
+                        <input type="date" id="reports-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="reports-end-date" class="text-sm font-medium">Fecha Hasta</label>
+                        <input type="date" id="reports-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card col-span-1 lg:col-span-2">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Evolución del Balance</h3>
+                    <div class="h-80 flex items-center justify-center">
+                        <canvas id="reportsBalanceEvolutionChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Ingresos por Categoría</h3>
+                    <div class="h-80 flex items-center justify-center">
+                        <canvas id="reportsIncomeChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Egresos por Categoría</h3>
+                    <div class="h-80 flex items-center justify-center">
+                        <canvas id="reportsExpensesChart"></canvas>
+                    </div>
+                </div>
+                 <div class="card">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Top 5 Categorías de Gasto</h3>
+                    <div id="reportsTopExpenses"></div>
+                </div>
+                 <div class="card">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Balance por Categoría</h3>
+                    <div class="h-80 flex items-center justify-center">
+                        <canvas id="reportsBalanceByCategoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Settings -->
+        <div id="settings-view" class="hidden">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Configuración</h1>
+            <p class="text-gray-500 mb-6">Gestiona categorías, presupuestos y transacciones recurrentes.</p>
+            
+            <div class="border-b border-gray-200 mb-6">
+                <nav class="flex space-x-2" id="settings-tabs">
+                    <button class="tab-btn active" data-tab="categories">Categorías</button>
+                    <button class="tab-btn" data-tab="budgets">Presupuestos</button>
+                    <button class="tab-btn" data-tab="recurring">Recurrentes</button>
+                </nav>
+            </div>
+
+            <div id="settings-content-categories">
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Categoría</h3>
+                        <form id="add-category-form" class="flex space-x-2">
+                            <input type="text" id="new-category-name" placeholder="Nombre de la categoría" class="flex-grow block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                            <button type="submit" class="btn-primary whitespace-nowrap">Añadir</button>
+                        </form>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Categorías</h3>
+                        <ul id="category-list-management" class="space-y-2"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settings-content-budgets" class="hidden">
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Definir Presupuesto</h3>
+                        <form id="budget-form" class="space-y-4">
+                            <select name="category" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select>
+                            <input type="number" step="0.01" name="amount" placeholder="Límite mensual" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                            <button type="submit" class="btn-primary w-full">Guardar Presupuesto</button>
+                        </form>
+                    </div>
+                     <div class="card">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Presupuestos</h3>
+                        <ul id="budget-list" class="space-y-4"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settings-content-recurring" class="hidden">
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Recurrente</h3>
+                        <form id="recurring-form" class="space-y-4">
+                            <input type="text" name="description" placeholder="Descripción" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                            <select name="category" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select>
+                            <input type="number" step="0.01" name="amount" placeholder="Monto" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                            <select name="type" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                                <option value="Ingreso">Ingreso</option>
+                                <option value="Egreso">Egreso</option>
+                            </select>
+                            <select name="frequency" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                                <option value="monthly">Mensual</option>
+                                <option value="weekly">Semanal</option>
+                            </select>
+                            <div>
+                               <label class="text-sm font-medium">Fecha de inicio</label>
+                               <input type="date" name="startDate" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                            </div>
+                            <button type="submit" class="btn-primary w-full">Guardar Recurrente</button>
+                        </form>
+                    </div>
+                     <div class="card">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Definidas</h3>
+                        <ul id="recurring-list" class="space-y-2"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- Modal for editing transaction -->
+<div id="transaction-modal-backdrop" class="modal-backdrop">
+    <div class="modal-content card w-11/12 max-w-lg">
+        <div class="flex justify-between items-center mb-4">
+            <h2 id="modal-title" class="text-2xl font-bold text-gray-800">Nueva Transacción</h2>
+            <button id="close-transaction-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+        </div>
+        <form id="transaction-form" class="space-y-4">
+             <input type="hidden" name="id">
+            <div>
+                <label for="date" class="block text-sm font-medium text-gray-700">Fecha</label>
+                <input type="date" id="date" name="date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+            </div>
+            <div>
+                <label for="description" class="block text-sm font-medium text-gray-700">Descripción</label>
+                <input type="text" id="description" name="description" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ej: Venta de producto X" required>
+            </div>
+            <div>
+                <label for="category" class="block text-sm font-medium text-gray-700">Categoría / Rubro</label>
+                <input type="text" id="category" name="category" list="category-list-datalist" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Elige o escribe una nueva..." required>
+                <datalist id="category-list-datalist"></datalist>
+            </div>
+            <div>
+                <label for="amount" class="block text-sm font-medium text-gray-700">Monto</label>
+                <input type="number" id="amount" name="amount" step="0.01" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="0.00" required>
+            </div>
+            <div>
+                <label for="type" class="block text-sm font-medium text-gray-700">Tipo</label>
+                <select id="type" name="type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <option value="Ingreso">Ingreso</option> <option value="Egreso">Egreso</option> <option value="A Cobrar">A Cobrar</option> <option value="A Pagar">A Pagar</option>
+                </select>
+            </div>
+            <div class="flex justify-end pt-4">
+                <button type="submit" class="btn-primary">Guardar Transacción</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirm-modal-backdrop" class="modal-backdrop">
+    <div class="modal-content card w-11/12 max-w-sm">
+        <h2 id="confirm-modal-title" class="text-xl font-bold text-gray-800 mb-4">Confirmar Acción</h2>
+        <p id="confirm-modal-message" class="text-gray-600 mb-6"></p>
+        <div class="flex justify-end space-x-4">
+            <button id="confirm-modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+            <button id="confirm-modal-confirm-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc, getDoc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // --- Firebase Config ---
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO" };
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+
+    // --- Firebase Initialization ---
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let userId = null;
+    let transactionsUnsubscribe = null;
+    let categoriesUnsubscribe = null;
+    let recurringUnsubscribe = null;
+    let budgetsUnsubscribe = null;
+
+    let allTransactions = [];
+    let allCategories = [];
+    let allRecurring = [];
+    let allBudgets = {};
+    
+    // --- Chart instances ---
+    let dashboardExpensesChart = null;
+    let dashboardMonthlyChart = null;
+    let reportsIncomeChart = null;
+    let reportsExpensesChart = null;
+    let reportsBalanceByCategoryChart = null;
+    let reportsBalanceEvolutionChart = null;
+    
+    // --- Logo Styling ---
+    function styleLogo() {
+        const logoColors = ['#55a630', '#f97316', '#facc15', '#ef4444', '#22c55e', '#a855f7', '#3b82f6', '#ec4899', '#f97316', '#55a630', '#facc15', '#ef4444', '#22c55e'];
+        document.querySelectorAll('#logo-container span').forEach((span, index) => {
+            span.style.backgroundColor = logoColors[index % logoColors.length];
+            const rotation = Math.random() * 8 - 4; // -4 to 4 degrees
+            span.style.transform = `rotate(${rotation}deg)`;
+        });
+    }
+
+    // --- Authentication ---
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            userId = user.uid;
+            document.getElementById('user-id').textContent = userId;
+            document.getElementById('user-info').classList.remove('hidden');
+            listenToAllData();
+        } else {
+            userId = null;
+            document.getElementById('user-info').classList.add('hidden');
+            [transactionsUnsubscribe, categoriesUnsubscribe, recurringUnsubscribe, budgetsUnsubscribe].forEach(unsub => unsub && unsub());
+        }
+    });
+    
+    async function signIn() {
+        try {
+            if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
+            else await signInAnonymously(auth);
+        } catch (error) { console.error("Authentication Error:", error); }
+    }
+
+    // --- UI Elements & State ---
+    const views = {
+        dashboard: document.getElementById('dashboard-view'),
+        transactions: document.getElementById('transactions-view'),
+        reports: document.getElementById('reports-view'),
+        settings: document.getElementById('settings-view'),
+    };
+    const navLinks = {
+        dashboard: document.getElementById('nav-dashboard'),
+        transactions: document.getElementById('nav-transactions'),
+        reports: document.getElementById('nav-reports'),
+        settings: document.getElementById('nav-settings'),
+    };
+    const addTransactionBtn = document.getElementById('add-transaction-btn');
+    const modal = {
+        backdrop: document.getElementById('transaction-modal-backdrop'),
+        closeBtn: document.getElementById('close-transaction-modal-btn'),
+        form: document.getElementById('transaction-form'),
+        title: document.getElementById('modal-title'),
+    };
+    const confirmModal = {
+        backdrop: document.getElementById('confirm-modal-backdrop'),
+        message: document.getElementById('confirm-modal-message'),
+        cancelBtn: document.getElementById('confirm-modal-cancel-btn'),
+        confirmBtn: document.getElementById('confirm-modal-confirm-btn'),
+    };
+    const tableBody = document.getElementById('transactions-table');
+    const noTransactionsMsg = document.getElementById('no-transactions');
+    const filters = {
+        start: document.getElementById('filter-start-date'),
+        end: document.getElementById('filter-end-date'),
+        type: document.getElementById('filter-type'),
+        category: document.getElementById('filter-category'),
+        dashboardPeriod: document.getElementById('dashboard-period-filter'),
+        reportsStart: document.getElementById('reports-start-date'),
+        reportsEnd: document.getElementById('reports-end-date'),
+    };
+    const settings = {
+        tabs: document.getElementById('settings-tabs'),
+        content: {
+            categories: document.getElementById('settings-content-categories'),
+            budgets: document.getElementById('settings-content-budgets'),
+            recurring: document.getElementById('settings-content-recurring'),
+        },
+        categoryForm: document.getElementById('add-category-form'),
+        categoryInput: document.getElementById('new-category-name'),
+        categoryList: document.getElementById('category-list-management'),
+        recurringForm: document.getElementById('recurring-form'),
+        recurringList: document.getElementById('recurring-list'),
+        budgetForm: document.getElementById('budget-form'),
+        budgetList: document.getElementById('budget-list'),
+    };
+    
+    // --- Navigation ---
+    function showView(viewName) {
+        Object.values(views).forEach(view => view.classList.add('hidden'));
+        Object.values(navLinks).forEach(link => link.classList.remove('active'));
+        views[viewName].classList.remove('hidden');
+        navLinks[viewName].classList.add('active');
+        renderUI();
+    }
+    Object.keys(navLinks).forEach(key => {
+        navLinks[key].addEventListener('click', (e) => {
+            e.preventDefault();
+            showView(key);
+        });
+    });
+
+    settings.tabs.addEventListener('click', (e) => {
+        if (e.target.matches('.tab-btn')) {
+            const tabName = e.target.dataset.tab;
+            settings.tabs.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            Object.values(settings.content).forEach(content => content.classList.add('hidden'));
+            settings.content[tabName].classList.remove('hidden');
+        }
+    });
+
+    // --- Modal Logic ---
+    const openTransactionModal = (tx = null) => {
+        modal.form.reset();
+        if (tx) { // Editing
+            modal.title.textContent = "Editar Transacción";
+            modal.form.id.value = tx.id;
+            modal.form.date.value = tx.date;
+            modal.form.description.value = tx.description;
+            modal.form.category.value = tx.category;
+            modal.form.amount.value = tx.amount;
+            modal.form.type.value = tx.type;
+        } else { // Adding
+            modal.title.textContent = "Nueva Transacción";
+            modal.form.id.value = '';
+            modal.form.date.value = dayjs().format('YYYY-MM-DD');
+        }
+        modal.backdrop.classList.add('active');
+    };
+    const closeTransactionModal = () => modal.backdrop.classList.remove('active');
+
+    addTransactionBtn.addEventListener('click', () => openTransactionModal());
+    modal.closeBtn.addEventListener('click', closeTransactionModal);
+    modal.backdrop.addEventListener('click', (e) => e.target === modal.backdrop && closeTransactionModal());
+
+    function showConfirmation(message) {
+        return new Promise((resolve) => {
+            confirmModal.message.textContent = message;
+            confirmModal.backdrop.classList.add('active');
+
+            const confirmHandler = () => {
+                confirmModal.backdrop.classList.remove('active');
+                confirmModal.confirmBtn.removeEventListener('click', confirmHandler);
+                confirmModal.cancelBtn.removeEventListener('click', cancelHandler);
+                resolve(true);
+            };
+
+            const cancelHandler = () => {
+                confirmModal.backdrop.classList.remove('active');
+                confirmModal.confirmBtn.removeEventListener('click', confirmHandler);
+                confirmModal.cancelBtn.removeEventListener('click', cancelHandler);
+                resolve(false);
+            };
+            
+            confirmModal.confirmBtn.addEventListener('click', confirmHandler);
+            confirmModal.cancelBtn.addEventListener('click', cancelHandler);
+            confirmModal.backdrop.addEventListener('click', (e) => {
+                 if (e.target === confirmModal.backdrop) {
+                     cancelHandler();
+                 }
+            });
+        });
+    }
+    
+    // --- Firestore Listeners ---
+    function listenToAllData() {
+        listenToTransactions();
+        listenToCategories();
+        listenToRecurring();
+        listenToBudgets();
+    }
+
+    function listenToTransactions() {
+        if (!userId) return;
+        const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+        const q = query(collectionRef, orderBy('date', 'desc'));
+        
+        transactionsUnsubscribe = onSnapshot(q, (snapshot) => {
+            allTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderUI();
+        });
+    }
+    
+    async function listenToCategories() {
+        if (!userId) return;
+        const categoriesDocRef = doc(db, `artifacts/${appId}/users/${userId}/settings/categories`);
+        const docSnap = await getDoc(categoriesDocRef);
+        if (!docSnap.exists()) {
+            const defaultCategories = ["Ventas", "Servicios", "Sueldos", "Alquiler", "Insumos", "Impuestos", "Otros"];
+            await setDoc(categoriesDocRef, { list: defaultCategories });
+        }
+        categoriesUnsubscribe = onSnapshot(categoriesDocRef, (doc) => {
+            allCategories = doc.exists() ? doc.data().list.sort((a,b) => a.localeCompare(b)) : [];
+            populateCategoryDropdowns();
+            renderCategoryManagementList();
+        });
+    }
+
+    function listenToRecurring() {
+        if (!userId) return;
+        const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/recurring`);
+        recurringUnsubscribe = onSnapshot(query(collectionRef, orderBy('startDate')), (snapshot) => {
+            allRecurring = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            processRecurringTransactions();
+            renderRecurringList();
+        });
+    }
+
+    function listenToBudgets() {
+        if (!userId) return;
+        const budgetsDocRef = doc(db, `artifacts/${appId}/users/${userId}/settings/budgets`);
+        budgetsUnsubscribe = onSnapshot(budgetsDocRef, (doc) => {
+            allBudgets = doc.exists() ? doc.data() : {};
+            renderBudgetList();
+            renderDashboardBudgets();
+        });
+    }
+    
+    // --- Firestore Write Operations ---
+    modal.form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!userId) return;
+
+        const id = modal.form.id.value;
+        const categoryValue = modal.form.category.value.trim();
+        const data = {
+            date: modal.form.date.value,
+            description: modal.form.description.value,
+            category: categoryValue,
+            amount: parseFloat(modal.form.amount.value),
+            type: modal.form.type.value,
+            settled: modal.form.type.value !== 'A Cobrar' && modal.form.type.value !== 'A Pagar',
+        };
+
+        try {
+            if (id) { // Update
+                await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/transactions`, id), data);
+            } else { // Add
+                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/transactions`), data);
+            }
+            if (categoryValue && !allCategories.includes(categoryValue)) {
+                await addCategory(categoryValue);
+            }
+            closeTransactionModal();
+        } catch (error) { console.error("Error saving transaction:", error); }
+    });
+
+    async function deleteTransaction(id) {
+        if (!userId) return;
+        const confirmed = await showConfirmation('¿Estás seguro de que quieres eliminar esta transacción?');
+        if (confirmed) {
+            await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/transactions`, id));
+        }
+    }
+    
+    async function settleTransaction(id, type, amount, description, category) {
+        if (!userId) return;
+        const newType = type === 'A Cobrar' ? 'Ingreso' : 'Egreso';
+        const newDescription = (type === 'A Cobrar' ? 'Cobro de: ' : 'Pago de: ') + description;
+        const batch = writeBatch(db);
+        batch.update(doc(db, `artifacts/${appId}/users/${userId}/transactions`, id), { settled: true });
+        batch.set(doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`)), {
+            date: dayjs().format('YYYY-MM-DD'), description: newDescription, category,
+            amount, type: newType, settled: true
+        });
+        await batch.commit();
+    }
+    
+    // --- Category Management ---
+    settings.categoryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newCategoryName = settings.categoryInput.value.trim();
+        if (newCategoryName) {
+            await addCategory(newCategoryName);
+            settings.categoryForm.reset();
+        }
+    });
+
+    async function addCategory(name) {
+        if (!userId || allCategories.includes(name)) return;
+        const updatedCategories = [...allCategories, name];
+        await setDoc(doc(db, `artifacts/${appId}/users/${userId}/settings/categories`), { list: updatedCategories });
+    }
+    
+    async function deleteCategory(name) {
+        if (!userId) return;
+        const confirmed = await showConfirmation(`¿Estás seguro de que quieres eliminar la categoría "${name}"? Esto no afectará a las transacciones existentes.`);
+        if (confirmed) {
+            const updatedCategories = allCategories.filter(c => c !== name);
+            await setDoc(doc(db, `artifacts/${appId}/users/${userId}/settings/categories`), { list: updatedCategories });
+        }
+    }
+
+    function populateCategoryDropdowns() {
+        const selects = [
+            filters.category,
+            document.querySelector('#recurring-form [name="category"]'),
+            document.querySelector('#budget-form [name="category"]'),
+        ];
+        const datalist = document.getElementById('category-list-datalist');
+        datalist.innerHTML = '';
+        selects.forEach(sel => {
+            const currentVal = sel.value;
+            sel.innerHTML = `<option value="">${sel.id === 'filter-category' ? 'Todas' : 'Seleccionar...'}</option>`;
+            allCategories.forEach(cat => {
+                const optionDL = document.createElement('option');
+                optionDL.value = cat;
+                datalist.appendChild(optionDL);
+                const optionSel = document.createElement('option');
+                optionSel.value = cat;
+                optionSel.textContent = cat;
+                sel.appendChild(optionSel);
+            });
+            sel.value = currentVal;
+        });
+    }
+
+    function renderCategoryManagementList() {
+        settings.categoryList.innerHTML = '';
+        if (allCategories.length === 0) return;
+        allCategories.forEach(cat => {
+            const li = document.createElement('li');
+            li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded';
+            li.innerHTML = `<span>${cat}</span><button data-cat="${cat}" class="delete-category-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>`;
+            settings.categoryList.appendChild(li);
+        });
+        settings.categoryList.querySelectorAll('.delete-category-btn').forEach(btn => {
+            btn.addEventListener('click', () => deleteCategory(btn.dataset.cat));
+        });
+    }
+    
+    // --- Recurring Transactions ---
+    settings.recurringForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if(!userId) return;
+        const formData = new FormData(e.target);
+        const data = {
+            description: formData.get('description'),
+            category: formData.get('category'),
+            amount: parseFloat(formData.get('amount')),
+            type: formData.get('type'),
+            frequency: formData.get('frequency'),
+            startDate: formData.get('startDate'),
+            lastGenerated: dayjs(formData.get('startDate')).subtract(1, 'day').format('YYYY-MM-DD')
+        };
+        await addDoc(collection(db, `artifacts/${appId}/users/${userId}/recurring`), data);
+        e.target.reset();
+    });
+
+    async function processRecurringTransactions() {
+        const today = dayjs();
+        const batch = writeBatch(db);
+        let hasUpdates = false;
+
+        for (const item of allRecurring) {
+            let lastGenerated = dayjs(item.lastGenerated);
+            let nextGenerationDate = lastGenerated.add(1, item.frequency === 'monthly' ? 'month' : 'week');
+            
+            while (nextGenerationDate.isBefore(today) || nextGenerationDate.isSame(today, 'day')) {
+                hasUpdates = true;
+                const newTransactionData = {
+                    date: nextGenerationDate.format('YYYY-MM-DD'),
+                    description: item.description,
+                    category: item.category,
+                    amount: item.amount,
+                    type: item.type,
+                    settled: true,
+                    recurringSourceId: item.id
+                };
+                batch.set(doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`)), newTransactionData);
+                lastGenerated = nextGenerationDate;
+                nextGenerationDate = lastGenerated.add(1, item.frequency === 'monthly' ? 'month' : 'week');
+            }
+
+            if (lastGenerated.format('YYYY-MM-DD') !== item.lastGenerated) {
+                batch.update(doc(db, `artifacts/${appId}/users/${userId}/recurring`, item.id), { lastGenerated: lastGenerated.format('YYYY-MM-DD') });
+            }
+        }
+        if (hasUpdates) await batch.commit();
+    }
+    
+    async function deleteRecurring(id) {
+        if (!userId) return;
+        const confirmed = await showConfirmation('¿Estás seguro de que quieres eliminar esta transacción recurrente?');
+        if(confirmed) {
+            await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/recurring`, id));
+        }
+    }
+
+    function renderRecurringList() {
+        settings.recurringList.innerHTML = '';
+        if (allRecurring.length === 0) {
+            settings.recurringList.innerHTML = `<li class="text-gray-500">No hay transacciones recurrentes.</li>`;
+            return;
+        }
+        allRecurring.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'flex justify-between items-center bg-gray-50 p-3 rounded';
+            li.innerHTML = `
+                <div>
+                    <p class="font-semibold">${item.description} - ${formatCurrency(item.amount)}</p>
+                    <p class="text-sm text-gray-500">${item.category} | ${item.frequency === 'monthly' ? 'Mensual' : 'Semanal'} desde ${dayjs(item.startDate).format('DD/MM/YY')}</p>
+                </div>
+                <button data-id="${item.id}" class="delete-recurring-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
+            `;
+            settings.recurringList.appendChild(li);
+        });
+        settings.recurringList.querySelectorAll('.delete-recurring-btn').forEach(btn => btn.addEventListener('click', () => deleteRecurring(btn.dataset.id)));
+    }
+    
+    // --- Budgets ---
+    settings.budgetForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!userId) return;
+        const formData = new FormData(e.target);
+        const category = formData.get('category');
+        const amount = parseFloat(formData.get('amount'));
+
+        if (category && amount >= 0) {
+            const budgetsDocRef = doc(db, `artifacts/${appId}/users/${userId}/settings/budgets`);
+            await setDoc(budgetsDocRef, { ...allBudgets, [category]: amount });
+            e.target.reset();
+        }
+    });
+
+    async function deleteBudget(category) {
+        if (!userId) return;
+        const confirmed = await showConfirmation(`¿Estás seguro de que quieres eliminar el presupuesto para "${category}"?`);
+        if (confirmed) {
+            const newBudgets = { ...allBudgets };
+            delete newBudgets[category];
+            await setDoc(doc(db, `artifacts/${appId}/users/${userId}/settings/budgets`), newBudgets);
+        }
+    }
+    
+    function calculateCurrentMonthSpending() {
+        const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD');
+        const endOfMonth = dayjs().endOf('month').format('YYYY-MM-DD');
+        return allTransactions
+            .filter(tx => tx.type === 'Egreso' && tx.date >= startOfMonth && tx.date <= endOfMonth)
+            .reduce((acc, tx) => {
+                acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+                return acc;
+            }, {});
+    }
+
+    function renderBudgetList() {
+        settings.budgetList.innerHTML = '';
+        const spending = calculateCurrentMonthSpending();
+        if (Object.keys(allBudgets).length === 0) {
+            settings.budgetList.innerHTML = `<li class="text-gray-500">No hay presupuestos definidos.</li>`;
+            return;
+        }
+        Object.entries(allBudgets).forEach(([category, limit]) => {
+            const spent = spending[category] || 0;
+            const percentage = limit > 0 ? (spent / limit) * 100 : 0;
+            const color = percentage > 100 ? 'bg-red-500' : (percentage > 80 ? 'bg-yellow-500' : 'bg-green-500');
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-semibold">${category}</span>
+                    <button data-cat="${category}" class="delete-budget-btn text-gray-400 hover:text-red-500 text-xs"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="progress-bar h-4 w-full"><div class="progress-bar-fill ${color}" style="width: ${Math.min(percentage, 100)}%;"></div></div>
+                <p class="text-sm text-right text-gray-600 mt-1">${formatCurrency(spent)} / ${formatCurrency(limit)}</p>
+            `;
+            settings.budgetList.appendChild(li);
+        });
+        settings.budgetList.querySelectorAll('.delete-budget-btn').forEach(btn => btn.addEventListener('click', () => deleteBudget(btn.dataset.cat)));
+    }
+
+    // --- Filtering Logic ---
+    [filters.start, filters.end, filters.type, filters.category, filters.dashboardPeriod, filters.reportsStart, filters.reportsEnd].forEach(filter => {
+        filter.addEventListener('change', renderUI);
+    });
+
+    function getDashboardDateRange() {
+        const period = filters.dashboardPeriod.value;
+        const now = dayjs();
+        if (period === 'currentMonth') return { start: now.startOf('month').format('YYYY-MM-DD'), end: now.endOf('month').format('YYYY-MM-DD') };
+        if (period === 'lastMonth') return { start: now.subtract(1, 'month').startOf('month').format('YYYY-MM-DD'), end: now.subtract(1, 'month').endOf('month').format('YYYY-MM-DD') };
+        if (period === 'currentYear') return { start: now.startOf('year').format('YYYY-MM-DD'), end: now.endOf('year').format('YYYY-MM-DD') };
+        return { start: null, end: null }; // allTime
+    }
+
+    function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '') {
+        let filtered = [...source];
+        let startDate = dateRange.start;
+        let endDate = dateRange.end;
+        
+        if (startDate) filtered = filtered.filter(tx => tx.date >= startDate);
+        if (endDate) filtered = filtered.filter(tx => tx.date <= endDate);
+        if (typeFilter) filtered = filtered.filter(tx => tx.type === typeFilter);
+        if (categoryFilter) filtered = filtered.filter(tx => tx.category === categoryFilter);
+        
+        return filtered;
+    }
+    
+    // --- Rendering Logic ---
+    function renderUI() {
+        const activeView = Object.keys(views).find(key => !views[key].classList.contains('hidden'));
+        
+        updateDashboard(allTransactions);
+
+        if (activeView === 'dashboard') {
+            const dateRange = getDashboardDateRange();
+            const filteredForDashboard = filterTransactions(allTransactions, dateRange);
+            renderDashboardCharts(filteredForDashboard);
+            renderDashboardBudgets();
+        } else if (activeView === 'transactions') {
+            const dateRange = { start: filters.start.value, end: filters.end.value };
+            const filteredForTable = filterTransactions(allTransactions, dateRange, filters.type.value, filters.category.value);
+            renderTable(filteredForTable);
+        } else if (activeView === 'reports') {
+            const dateRange = { start: filters.reportsStart.value, end: filters.reportsEnd.value };
+            const filteredForReports = filterTransactions(allTransactions, dateRange);
+            renderReportCharts(filteredForReports);
+        }
+    }
+
+    function renderTable(transactions) {
+        tableBody.innerHTML = '';
+        noTransactionsMsg.style.display = transactions.length === 0 ? 'block' : 'none';
+
+        transactions.forEach(tx => {
+            const typeInfo = getTypeInfo(tx.type);
+            const tr = document.createElement('tr');
+            tr.className = `bg-white border-b hover:bg-gray-50 ${tx.settled ? 'opacity-60' : ''}`;
+            tr.innerHTML = `
+                <td class="px-6 py-4">${dayjs(tx.date).format('DD/MM/YYYY')}</td>
+                <td class="px-6 py-4 font-medium text-gray-900 ${tx.settled ? 'line-through' : ''}">${tx.description}</td>
+                <td class="px-6 py-4">${tx.category}</td>
+                <td class="px-6 py-4">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${typeInfo.bgColor} ${typeInfo.textColor}">${tx.type}</span>
+                </td>
+                <td class="px-6 py-4 text-right font-semibold ${typeInfo.textColor}">${formatCurrency(tx.amount)}</td>
+                <td class="px-6 py-4 text-center space-x-3">
+                    ${(tx.type === 'A Cobrar' || tx.type === 'A Pagar') && !tx.settled ? 
+                    `<button title="Marcar como pagado/cobrado" data-id="${tx.id}" data-type="${tx.type}" data-amount="${tx.amount}" data-desc="${tx.description}" data-cat="${tx.category}" class="settle-btn text-green-500 hover:text-green-700"><i class="fas fa-check-circle"></i></button>` : ''}
+                    <button title="Editar" data-id="${tx.id}" class="edit-btn text-blue-500 hover:text-blue-700"><i class="fas fa-pencil-alt"></i></button>
+                    <button title="Eliminar" data-id="${tx.id}" class="delete-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+        
+        tableBody.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', () => deleteTransaction(b.dataset.id)));
+        tableBody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', () => {
+            const tx = allTransactions.find(t => t.id === b.dataset.id);
+            if(tx) openTransactionModal(tx);
+        }));
+        tableBody.querySelectorAll('.settle-btn').forEach(b => b.addEventListener('click', () => settleTransaction(b.dataset.id, b.dataset.type, parseFloat(b.dataset.amount), b.dataset.desc, b.dataset.cat)));
+    }
+    
+    function updateDashboard(transactions) {
+        const totals = transactions.reduce((acc, tx) => {
+            if (tx.type === 'Ingreso') acc.income += tx.amount;
+            if (tx.type === 'Egreso') acc.expense += tx.amount;
+            if (tx.type === 'A Cobrar' && !tx.settled) acc.receivable += tx.amount;
+            if (tx.type === 'A Pagar' && !tx.settled) acc.payable += tx.amount;
+            return acc;
+        }, { income: 0, expense: 0, receivable: 0, payable: 0 });
+
+        const balance = totals.income - totals.expense;
+        
+        document.getElementById('balance').textContent = formatCurrency(balance);
+        document.getElementById('total-income').textContent = formatCurrency(totals.income);
+        document.getElementById('total-expense').textContent = formatCurrency(totals.expense);
+        document.getElementById('total-receivable').textContent = formatCurrency(totals.receivable);
+        document.getElementById('total-payable').textContent = formatCurrency(totals.payable);
+        document.getElementById('balance').className = `text-3xl font-bold mt-2 ${balance >= 0 ? 'text-gray-800' : 'text-red-600'}`;
+    }
+
+    function renderDashboardBudgets() {
+        const container = document.getElementById('budgets-summary-list');
+        container.innerHTML = '';
+        const spending = calculateCurrentMonthSpending();
+        if (Object.keys(allBudgets).length === 0) {
+            container.innerHTML = `<p class="text-gray-500">No has definido presupuestos. Ve a Configuración > Presupuestos para empezar.</p>`;
+            return;
+        }
+         Object.entries(allBudgets).forEach(([category, limit]) => {
+            const spent = spending[category] || 0;
+            const percentage = limit > 0 ? (spent / limit) * 100 : 0;
+            const color = percentage > 100 ? 'bg-red-500' : (percentage > 80 ? 'bg-yellow-500' : 'bg-green-500');
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-1 text-sm">
+                    <span class="font-semibold">${category}</span>
+                    <span class="text-gray-600">${formatCurrency(spent)} / ${formatCurrency(limit)}</span>
+                </div>
+                <div class="progress-bar h-2.5 w-full"><div class="progress-bar-fill ${color}" style="width: ${Math.min(percentage, 100)}%;"></div></div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function renderDashboardCharts(transactions) {
+        // Doughnut Chart
+        const doughnutCtx = document.getElementById('dashboardExpensesChart').getContext('2d');
+        const expenses = transactions.filter(tx => tx.type === 'Egreso').reduce((acc, tx) => {
+            acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+            return acc;
+        }, {});
+        if (dashboardExpensesChart) dashboardExpensesChart.destroy();
+        dashboardExpensesChart = new Chart(doughnutCtx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(expenses),
+                datasets: [{ data: Object.values(expenses), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'], hoverOffset: 4 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        // Monthly Bar chart
+        const barCtx = document.getElementById('dashboardMonthlyChart').getContext('2d');
+        const monthly = transactions.reduce((acc, tx) => {
+            const month = dayjs(tx.date).format('YYYY-MM');
+            if (!acc[month]) acc[month] = { income: 0, expense: 0 };
+            if (tx.type === 'Ingreso') acc[month].income += tx.amount;
+            if (tx.type === 'Egreso') acc[month].expense += tx.amount;
+            return acc;
+        }, {});
+        const sorted = Object.keys(monthly).sort();
+        if (dashboardMonthlyChart) dashboardMonthlyChart.destroy();
+        dashboardMonthlyChart = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: sorted.map(m => dayjs(m).format('MMM YY')),
+                datasets: [
+                    { label: 'Ingresos', data: sorted.map(m => monthly[m].income), backgroundColor: 'rgba(34, 197, 94, 0.6)' },
+                    { label: 'Egresos', data: sorted.map(m => monthly[m].expense), backgroundColor: 'rgba(239, 68, 68, 0.6)' }
+                ]
+            },
+            options: { scales: { y: { beginAtZero: true } }, responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function renderReportCharts(transactions) {
+        // Balance Evolution
+        const evolutionCtx = document.getElementById('reportsBalanceEvolutionChart').getContext('2d');
+        const sortedTx = [...transactions].sort((a, b) => dayjs(a.date).isAfter(dayjs(b.date)) ? 1 : -1);
+        let cumulativeBalance = 0;
+        const balanceData = sortedTx.map(tx => {
+            if (tx.type === 'Ingreso') cumulativeBalance += tx.amount;
+            if (tx.type === 'Egreso') cumulativeBalance -= tx.amount;
+            return { x: dayjs(tx.date).valueOf(), y: cumulativeBalance };
+        });
+        if (reportsBalanceEvolutionChart) reportsBalanceEvolutionChart.destroy();
+        reportsBalanceEvolutionChart = new Chart(evolutionCtx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Balance',
+                    data: balanceData,
+                    borderColor: 'rgb(79, 70, 229)',
+                    tension: 0.1,
+                    fill: true,
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)'
+                }]
+            },
+            options: {
+                scales: {
+                    x: { 
+                        type: 'time', 
+                        time: { 
+                            unit: 'day', 
+                            tooltipFormat: 'DD MMM YYYY',
+                            displayFormats: {
+                                day: 'DD MMM'
+                            }
+                        } 
+                    }
+                },
+                responsive: true, maintainAspectRatio: false
+            }
+        });
+
+        // Top 5 Expenses Table
+        const topExpensesContainer = document.getElementById('reportsTopExpenses');
+        const expensesByCat = transactions.filter(tx => tx.type === 'Egreso').reduce((acc, tx) => {
+            acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+            return acc;
+        }, {});
+        const top5 = Object.entries(expensesByCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        if (top5.length > 0) {
+            topExpensesContainer.innerHTML = `
+                <table class="w-full text-sm">
+                    <tbody>
+                        ${top5.map(([cat, amount]) => `
+                            <tr class="border-b last:border-b-0">
+                                <td class="py-3 font-medium">${cat}</td>
+                                <td class="py-3 text-right text-red-600 font-semibold">${formatCurrency(amount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } else {
+            topExpensesContainer.innerHTML = `<p class="text-gray-500 text-center py-10">No hay gastos en este período.</p>`;
+        }
+
+
+        // Income by Category
+        const incomeCtx = document.getElementById('reportsIncomeChart').getContext('2d');
+        const incomeByCat = transactions.filter(tx => tx.type === 'Ingreso').reduce((acc, tx) => {
+            acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+            return acc;
+        }, {});
+        if (reportsIncomeChart) reportsIncomeChart.destroy();
+        reportsIncomeChart = new Chart(incomeCtx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(incomeByCat),
+                datasets: [{ data: Object.values(incomeByCat), backgroundColor: ['#22c55e', '#84cc16', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6'], hoverOffset: 4 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        // Expenses by Category
+        const expensesCtx = document.getElementById('reportsExpensesChart').getContext('2d');
+        if (reportsExpensesChart) reportsExpensesChart.destroy();
+        reportsExpensesChart = new Chart(expensesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(expensesByCat),
+                datasets: [{ data: Object.values(expensesByCat), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#d946ef', '#be185d'], hoverOffset: 4 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        // Balance by Category
+        const balanceCtx = document.getElementById('reportsBalanceByCategoryChart').getContext('2d');
+        const balanceByCat = transactions.reduce((acc, tx) => {
+            if (!acc[tx.category]) acc[tx.category] = { income: 0, expense: 0 };
+            if (tx.type === 'Ingreso') acc[tx.category].income += tx.amount;
+            if (tx.type === 'Egreso') acc[tx.category].expense += tx.amount;
+            return acc;
+        }, {});
+        const categories = Object.keys(balanceByCat);
+        if (reportsBalanceByCategoryChart) reportsBalanceByCategoryChart.destroy();
+        reportsBalanceByCategoryChart = new Chart(balanceCtx, {
+            type: 'bar',
+            data: {
+                labels: categories,
+                datasets: [
+                    { label: 'Ingresos', data: categories.map(cat => balanceByCat[cat].income), backgroundColor: 'rgba(34, 197, 94, 0.6)' },
+                    { label: 'Egresos', data: categories.map(cat => balanceByCat[cat].expense), backgroundColor: 'rgba(239, 68, 68, 0.6)' }
+                ]
+            },
+            options: { scales: { x: { stacked: false }, y: { stacked: false, beginAtZero: true } }, responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // --- Helper Functions ---
+    function formatCurrency(value) { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value); }
+    function getTypeInfo(type) {
+        switch (type) {
+            case 'Ingreso': return { textColor: 'text-green-800', bgColor: 'bg-green-100' };
+            case 'Egreso': return { textColor: 'text-red-800', bgColor: 'bg-red-100' };
+            case 'A Cobrar': return { textColor: 'text-yellow-800', bgColor: 'bg-yellow-100' };
+            case 'A Pagar': return { textColor: 'text-orange-800', bgColor: 'bg-orange-100' };
+            default: return { textColor: 'text-gray-800', bgColor: 'bg-gray-100' };
+        }
+    }
+    
+    // --- App Initialization ---
+    styleLogo();
+    signIn();
+
+</script>
+</body>
+</html>
+
