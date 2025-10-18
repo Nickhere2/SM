@@ -536,6 +536,7 @@
     
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
     // --- Firebase Initialization ---
     if (!firebaseConfig || !firebaseConfig.apiKey || (userFirebaseConfig && !userFirebaseConfig.projectId)) {
@@ -582,7 +583,6 @@
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const authError = document.getElementById('auth-error');
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -1227,25 +1227,25 @@
     // --- App Initialization ---
     styleLogo();
     document.addEventListener('DOMContentLoaded', () => {
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
+       const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                userId = user.uid;
-                document.getElementById('user-display-name').textContent = user.displayName || 'Usuario';
-                document.getElementById('user-email').textContent = user.email;
-                appContainer.classList.remove('hidden');
-                authOverlay.classList.add('hidden');
-                listenToAllData();
+                // User is signed in, show the app
             } else {
-                appContainer.classList.add('hidden');
-                authOverlay.classList.remove('hidden');
+                // No user is signed in, show the login screen
                 if (initialAuthToken) {
                     try {
                         await signInWithCustomToken(auth, initialAuthToken);
                     } catch (error) {
                         console.error("Custom token sign-in failed:", error);
+                        // If token fails, show login screen anyway
+                        authOverlay.classList.remove('hidden');
+                        appContainer.classList.add('hidden');
                     }
+                } else {
+                    authOverlay.classList.remove('hidden');
+                    appContainer.classList.add('hidden');
                 }
             }
         });
