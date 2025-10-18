@@ -185,9 +185,10 @@
             </a>
         </nav>
         <div class="p-4 border-t border-[var(--border-color)]">
-             <div id="user-info" class="p-3 bg-indigo-50 text-indigo-800 rounded-lg text-sm hidden">
+             <div id="user-info" class="p-3 bg-indigo-50 text-indigo-800 rounded-lg text-sm">
                  <p class="font-semibold">ID de Usuario:</p>
                 <code id="user-id" class="bg-indigo-100 text-xs p-1 rounded break-all"></code>
+                <button id="change-user-btn" class="text-xs text-indigo-600 hover:underline mt-2">Cambiar Usuario</button>
             </div>
         </div>
     </aside>
@@ -498,14 +499,13 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc, getDoc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     // --- Firebase Config ---
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO" };
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
-
+    
     // --- Firebase Initialization ---
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -540,25 +540,33 @@
         });
     }
 
-    // --- Authentication ---
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            userId = user.uid;
-            document.getElementById('user-id').textContent = userId;
-            document.getElementById('user-info').classList.remove('hidden');
-            listenToAllData();
-        } else {
-            userId = null;
-            document.getElementById('user-info').classList.add('hidden');
-            [transactionsUnsubscribe, categoriesUnsubscribe, recurringUnsubscribe, budgetsUnsubscribe].forEach(unsub => unsub && unsub());
+    // --- Session Management & Authentication ---
+    function initializeUserSession() {
+        userId = localStorage.getItem('sueñosMagicos-userId');
+        if (!userId) {
+            userId = crypto.randomUUID();
+            localStorage.setItem('sueñosMagicos-userId', userId);
         }
-    });
-    
-    async function signIn() {
-        try {
-            if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
-            else await signInAnonymously(auth);
-        } catch (error) { console.error("Authentication Error:", error); }
+        document.getElementById('user-id').textContent = userId;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                listenToAllData();
+            } else {
+                signInAnonymously(auth).catch(error => console.error("Anonymous sign-in failed:", error));
+            }
+        });
+
+        document.getElementById('change-user-btn').addEventListener('click', async () => {
+            const newId = prompt('Pega aquí el ID de Usuario de tu otro dispositivo para sincronizar los datos:');
+            if (newId && newId.trim() !== '') {
+                const confirmed = await showConfirmation('Al cambiar de ID, la página se recargará con los nuevos datos. ¿Continuar?');
+                if(confirmed) {
+                    localStorage.setItem('sueñosMagicos-userId', newId.trim());
+                    window.location.reload();
+                }
+            }
+        });
     }
 
     // --- UI Elements & State ---
@@ -694,79 +702,83 @@
     
     // --- Firestore Listeners ---
     function listenToAllData() {
+        if (!userId) return;
         listenToTransactions();
         listenToCategories();
         listenToRecurring();
         listenToBudgets();
     }
 
+    function getCollectionPath(collectionName) {
+        return `artifacts/${appId}/users/${userId}/${collectionName}`;
+    }
+
+    function getSettingsDocPath(docName) {
+        return `artifacts/${appId}/users/${userId}/settings/${docName}`;
+    }
+
+
     function listenToTransactions() {
-        if (!userId) return;
-        const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+        const collectionRef = collection(db, getCollectionPath('transactions'));
         const q = query(collectionRef, orderBy('date', 'desc'));
-        
         transactionsUnsubscribe = onSnapshot(q, (snapshot) => {
             allTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderUI();
-        });
+        }, (error) => console.error("Transaction listener failed:", error));
     }
     
     async function listenToCategories() {
-        if (!userId) return;
-        const categoriesDocRef = doc(db, `artifacts/${appId}/users/${userId}/settings/categories`);
-        const docSnap = await getDoc(categoriesDocRef);
-        if (!docSnap.exists()) {
-            const defaultCategories = ["Ventas", "Servicios", "Sueldos", "Alquiler", "Insumos", "Impuestos", "Otros"];
-            await setDoc(categoriesDocRef, { list: defaultCategories });
-        }
+        const categoriesDocRef = doc(db, getSettingsDocPath('categories'));
         categoriesUnsubscribe = onSnapshot(categoriesDocRef, (doc) => {
             allCategories = doc.exists() ? doc.data().list.sort((a,b) => a.localeCompare(b)) : [];
             populateCategoryDropdowns();
             renderCategoryManagementList();
-        });
+        }, (error) => console.error("Category listener failed:", error));
+
+        const docSnap = await getDoc(categoriesDocRef).catch(e => console.error(e));
+        if (docSnap && !docSnap.exists()) {
+            const defaultCategories = ["Ventas", "Servicios", "Sueldos", "Alquiler", "Insumos", "Impuestos", "Otros"];
+            await setDoc(categoriesDocRef, { list: defaultCategories });
+        }
     }
 
     function listenToRecurring() {
-        if (!userId) return;
-        const collectionRef = collection(db, `artifacts/${appId}/users/${userId}/recurring`);
+        const collectionRef = collection(db, getCollectionPath('recurring'));
         recurringUnsubscribe = onSnapshot(query(collectionRef, orderBy('startDate')), (snapshot) => {
             allRecurring = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             processRecurringTransactions();
             renderRecurringList();
-        });
+        }, (error) => console.error("Recurring listener failed:", error));
     }
 
     function listenToBudgets() {
-        if (!userId) return;
-        const budgetsDocRef = doc(db, `artifacts/${appId}/users/${userId}/settings/budgets`);
+        const budgetsDocRef = doc(db, getSettingsDocPath('budgets'));
         budgetsUnsubscribe = onSnapshot(budgetsDocRef, (doc) => {
             allBudgets = doc.exists() ? doc.data() : {};
             renderBudgetList();
             renderDashboardBudgets();
-        });
+        }, (error) => console.error("Budgets listener failed:", error));
     }
     
     // --- Firestore Write Operations ---
     modal.form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!userId) return;
-
-        const id = modal.form.id.value;
-        const categoryValue = modal.form.category.value.trim();
         const data = {
             date: modal.form.date.value,
             description: modal.form.description.value,
-            category: categoryValue,
+            category: modal.form.category.value.trim(),
             amount: parseFloat(modal.form.amount.value),
             type: modal.form.type.value,
-            settled: modal.form.type.value !== 'A Cobrar' && modal.form.type.value !== 'A Pagar',
+            settled: !['A Cobrar', 'A Pagar'].includes(modal.form.type.value),
         };
+        const id = modal.form.id.value;
+        const categoryValue = data.category;
 
         try {
-            if (id) { // Update
-                await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/transactions`, id), data);
-            } else { // Add
-                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/transactions`), data);
+            if (id) {
+                await updateDoc(doc(db, getCollectionPath('transactions'), id), data);
+            } else {
+                await addDoc(collection(db, getCollectionPath('transactions')), data);
             }
             if (categoryValue && !allCategories.includes(categoryValue)) {
                 await addCategory(categoryValue);
@@ -776,22 +788,20 @@
     });
 
     async function deleteTransaction(id) {
-        if (!userId) return;
         const confirmed = await showConfirmation('¿Estás seguro de que quieres eliminar esta transacción?');
         if (confirmed) {
-            await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/transactions`, id));
+            await deleteDoc(doc(db, getCollectionPath('transactions'), id));
         }
     }
     
     async function settleTransaction(id, type, amount, description, category) {
-        if (!userId) return;
-        const newType = type === 'A Cobrar' ? 'Ingreso' : 'Egreso';
-        const newDescription = (type === 'A Cobrar' ? 'Cobro de: ' : 'Pago de: ') + description;
         const batch = writeBatch(db);
-        batch.update(doc(db, `artifacts/${appId}/users/${userId}/transactions`, id), { settled: true });
-        batch.set(doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`)), {
-            date: dayjs().format('YYYY-MM-DD'), description: newDescription, category,
-            amount, type: newType, settled: true
+        batch.update(doc(db, getCollectionPath('transactions'), id), { settled: true });
+        const newType = type === 'A Cobrar' ? 'Ingreso' : 'Egreso';
+        batch.set(doc(collection(db, getCollectionPath('transactions'))), {
+            date: dayjs().format('YYYY-MM-DD'),
+            description: `${type === 'A Cobrar' ? 'Cobro de' : 'Pago de'}: ${description}`,
+            category, amount, type: newType, settled: true
         });
         await batch.commit();
     }
@@ -807,64 +817,24 @@
     });
 
     async function addCategory(name) {
-        if (!userId || allCategories.includes(name)) return;
+        if (allCategories.includes(name)) return;
         const updatedCategories = [...allCategories, name];
-        await setDoc(doc(db, `artifacts/${appId}/users/${userId}/settings/categories`), { list: updatedCategories });
+        await setDoc(doc(db, getSettingsDocPath('categories')), { list: updatedCategories });
     }
     
     async function deleteCategory(name) {
-        if (!userId) return;
-        const confirmed = await showConfirmation(`¿Estás seguro de que quieres eliminar la categoría "${name}"? Esto no afectará a las transacciones existentes.`);
+        const confirmed = await showConfirmation(`¿Eliminar la categoría "${name}"?`);
         if (confirmed) {
             const updatedCategories = allCategories.filter(c => c !== name);
-            await setDoc(doc(db, `artifacts/${appId}/users/${userId}/settings/categories`), { list: updatedCategories });
+            await setDoc(doc(db, getSettingsDocPath('categories')), { list: updatedCategories });
         }
     }
 
-    function populateCategoryDropdowns() {
-        const selects = [
-            filters.category,
-            document.querySelector('#recurring-form [name="category"]'),
-            document.querySelector('#budget-form [name="category"]'),
-        ];
-        const datalist = document.getElementById('category-list-datalist');
-        datalist.innerHTML = '';
-        selects.forEach(sel => {
-            const currentVal = sel.value;
-            sel.innerHTML = `<option value="">${sel.id === 'filter-category' ? 'Todas' : 'Seleccionar...'}</option>`;
-            allCategories.forEach(cat => {
-                const optionDL = document.createElement('option');
-                optionDL.value = cat;
-                datalist.appendChild(optionDL);
-                const optionSel = document.createElement('option');
-                optionSel.value = cat;
-                optionSel.textContent = cat;
-                sel.appendChild(optionSel);
-            });
-            sel.value = currentVal;
-        });
-    }
-
-    function renderCategoryManagementList() {
-        settings.categoryList.innerHTML = '';
-        if (allCategories.length === 0) return;
-        allCategories.forEach(cat => {
-            const li = document.createElement('li');
-            li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded';
-            li.innerHTML = `<span>${cat}</span><button data-cat="${cat}" class="delete-category-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>`;
-            settings.categoryList.appendChild(li);
-        });
-        settings.categoryList.querySelectorAll('.delete-category-btn').forEach(btn => {
-            btn.addEventListener('click', () => deleteCategory(btn.dataset.cat));
-        });
-    }
-    
     // --- Recurring Transactions ---
     settings.recurringForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if(!userId) return;
         const formData = new FormData(e.target);
-        const data = {
+        await addDoc(collection(db, getCollectionPath('recurring')), {
             description: formData.get('description'),
             category: formData.get('category'),
             amount: parseFloat(formData.get('amount')),
@@ -872,57 +842,67 @@
             frequency: formData.get('frequency'),
             startDate: formData.get('startDate'),
             lastGenerated: dayjs(formData.get('startDate')).subtract(1, 'day').format('YYYY-MM-DD')
-        };
-        await addDoc(collection(db, `artifacts/${appId}/users/${userId}/recurring`), data);
+        });
         e.target.reset();
     });
-
-    async function processRecurringTransactions() {
-        const today = dayjs();
-        const batch = writeBatch(db);
-        let hasUpdates = false;
-
-        for (const item of allRecurring) {
-            let lastGenerated = dayjs(item.lastGenerated);
-            let nextGenerationDate = lastGenerated.add(1, item.frequency === 'monthly' ? 'month' : 'week');
-            
-            while (nextGenerationDate.isBefore(today) || nextGenerationDate.isSame(today, 'day')) {
-                hasUpdates = true;
-                const newTransactionData = {
-                    date: nextGenerationDate.format('YYYY-MM-DD'),
-                    description: item.description,
-                    category: item.category,
-                    amount: item.amount,
-                    type: item.type,
-                    settled: true,
-                    recurringSourceId: item.id
-                };
-                batch.set(doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`)), newTransactionData);
-                lastGenerated = nextGenerationDate;
-                nextGenerationDate = lastGenerated.add(1, item.frequency === 'monthly' ? 'month' : 'week');
-            }
-
-            if (lastGenerated.format('YYYY-MM-DD') !== item.lastGenerated) {
-                batch.update(doc(db, `artifacts/${appId}/users/${userId}/recurring`, item.id), { lastGenerated: lastGenerated.format('YYYY-MM-DD') });
-            }
-        }
-        if (hasUpdates) await batch.commit();
-    }
     
     async function deleteRecurring(id) {
-        if (!userId) return;
-        const confirmed = await showConfirmation('¿Estás seguro de que quieres eliminar esta transacción recurrente?');
+        const confirmed = await showConfirmation('¿Eliminar esta transacción recurrente?');
         if(confirmed) {
-            await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/recurring`, id));
+            await deleteDoc(doc(db, getCollectionPath('recurring'), id));
         }
     }
 
-    function renderRecurringList() {
-        settings.recurringList.innerHTML = '';
-        if (allRecurring.length === 0) {
-            settings.recurringList.innerHTML = `<li class="text-gray-500">No hay transacciones recurrentes.</li>`;
-            return;
+    // --- Budgets ---
+    settings.budgetForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const category = formData.get('category');
+        const amount = parseFloat(formData.get('amount'));
+        if (category && amount >= 0) {
+            await setDoc(doc(db, getSettingsDocPath('budgets')), { ...allBudgets, [category]: amount });
+            e.target.reset();
         }
+    });
+
+    async function deleteBudget(category) {
+        const confirmed = await showConfirmation(`¿Eliminar el presupuesto para "${category}"?`);
+        if (confirmed) {
+            const newBudgets = { ...allBudgets };
+            delete newBudgets[category];
+            await setDoc(doc(db, getSettingsDocPath('budgets')), newBudgets);
+        }
+    }
+    
+    // --- Populating UI ---
+    function populateCategoryDropdowns() {
+        const selects = [filters.category, settings.recurringForm.category, settings.budgetForm.category];
+        const datalist = document.getElementById('category-list-datalist');
+        datalist.innerHTML = '';
+        allCategories.forEach(cat => {
+            datalist.appendChild(new Option(cat, cat));
+        });
+        selects.forEach(sel => {
+            const currentVal = sel.value;
+            sel.innerHTML = `<option value="">${sel.id === 'filter-category' ? 'Todas' : 'Seleccionar...'}</option>`;
+            allCategories.forEach(cat => sel.appendChild(new Option(cat, cat)));
+            sel.value = currentVal;
+        });
+    }
+
+    function renderCategoryManagementList() {
+        settings.categoryList.innerHTML = '';
+        allCategories.forEach(cat => {
+            const li = document.createElement('li');
+            li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded';
+            li.innerHTML = `<span>${cat}</span><button data-cat="${cat}" class="delete-category-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>`;
+            settings.categoryList.appendChild(li);
+        });
+        settings.categoryList.querySelectorAll('.delete-category-btn').forEach(btn => btn.addEventListener('click', () => deleteCategory(btn.dataset.cat)));
+    }
+    
+    function renderRecurringList() {
+        settings.recurringList.innerHTML = allRecurring.length ? '' : `<li class="text-gray-500">No hay transacciones recurrentes.</li>`;
         allRecurring.forEach(item => {
             const li = document.createElement('li');
             li.className = 'flex justify-between items-center bg-gray-50 p-3 rounded';
@@ -937,50 +917,10 @@
         });
         settings.recurringList.querySelectorAll('.delete-recurring-btn').forEach(btn => btn.addEventListener('click', () => deleteRecurring(btn.dataset.id)));
     }
-    
-    // --- Budgets ---
-    settings.budgetForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!userId) return;
-        const formData = new FormData(e.target);
-        const category = formData.get('category');
-        const amount = parseFloat(formData.get('amount'));
-
-        if (category && amount >= 0) {
-            const budgetsDocRef = doc(db, `artifacts/${appId}/users/${userId}/settings/budgets`);
-            await setDoc(budgetsDocRef, { ...allBudgets, [category]: amount });
-            e.target.reset();
-        }
-    });
-
-    async function deleteBudget(category) {
-        if (!userId) return;
-        const confirmed = await showConfirmation(`¿Estás seguro de que quieres eliminar el presupuesto para "${category}"?`);
-        if (confirmed) {
-            const newBudgets = { ...allBudgets };
-            delete newBudgets[category];
-            await setDoc(doc(db, `artifacts/${appId}/users/${userId}/settings/budgets`), newBudgets);
-        }
-    }
-    
-    function calculateCurrentMonthSpending() {
-        const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD');
-        const endOfMonth = dayjs().endOf('month').format('YYYY-MM-DD');
-        return allTransactions
-            .filter(tx => tx.type === 'Egreso' && tx.date >= startOfMonth && tx.date <= endOfMonth)
-            .reduce((acc, tx) => {
-                acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-                return acc;
-            }, {});
-    }
 
     function renderBudgetList() {
-        settings.budgetList.innerHTML = '';
+        settings.budgetList.innerHTML = Object.keys(allBudgets).length ? '' : `<li class="text-gray-500">No hay presupuestos definidos.</li>`;
         const spending = calculateCurrentMonthSpending();
-        if (Object.keys(allBudgets).length === 0) {
-            settings.budgetList.innerHTML = `<li class="text-gray-500">No hay presupuestos definidos.</li>`;
-            return;
-        }
         Object.entries(allBudgets).forEach(([category, limit]) => {
             const spent = spending[category] || 0;
             const percentage = limit > 0 ? (spent / limit) * 100 : 0;
@@ -999,10 +939,8 @@
         settings.budgetList.querySelectorAll('.delete-budget-btn').forEach(btn => btn.addEventListener('click', () => deleteBudget(btn.dataset.cat)));
     }
 
-    // --- Filtering Logic ---
-    [filters.start, filters.end, filters.type, filters.category, filters.dashboardPeriod, filters.reportsStart, filters.reportsEnd].forEach(filter => {
-        filter.addEventListener('change', renderUI);
-    });
+    // --- Filtering & UI Rendering ---
+    Object.values(filters).forEach(filter => filter.addEventListener('change', renderUI));
 
     function getDashboardDateRange() {
         const period = filters.dashboardPeriod.value;
@@ -1010,48 +948,137 @@
         if (period === 'currentMonth') return { start: now.startOf('month').format('YYYY-MM-DD'), end: now.endOf('month').format('YYYY-MM-DD') };
         if (period === 'lastMonth') return { start: now.subtract(1, 'month').startOf('month').format('YYYY-MM-DD'), end: now.subtract(1, 'month').endOf('month').format('YYYY-MM-DD') };
         if (period === 'currentYear') return { start: now.startOf('year').format('YYYY-MM-DD'), end: now.endOf('year').format('YYYY-MM-DD') };
-        return { start: null, end: null }; // allTime
+        return { start: null, end: null };
     }
 
     function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '') {
         let filtered = [...source];
-        let startDate = dateRange.start;
-        let endDate = dateRange.end;
-        
-        if (startDate) filtered = filtered.filter(tx => tx.date >= startDate);
-        if (endDate) filtered = filtered.filter(tx => tx.date <= endDate);
+        if (dateRange.start) filtered = filtered.filter(tx => tx.date >= dateRange.start);
+        if (dateRange.end) filtered = filtered.filter(tx => tx.date <= dateRange.end);
         if (typeFilter) filtered = filtered.filter(tx => tx.type === typeFilter);
         if (categoryFilter) filtered = filtered.filter(tx => tx.category === categoryFilter);
-        
         return filtered;
     }
     
-    // --- Rendering Logic ---
     function renderUI() {
         const activeView = Object.keys(views).find(key => !views[key].classList.contains('hidden'));
-        
         updateDashboard(allTransactions);
-
         if (activeView === 'dashboard') {
-            const dateRange = getDashboardDateRange();
-            const filteredForDashboard = filterTransactions(allTransactions, dateRange);
-            renderDashboardCharts(filteredForDashboard);
+            const filtered = filterTransactions(allTransactions, getDashboardDateRange());
+            renderDashboardCharts(filtered);
             renderDashboardBudgets();
         } else if (activeView === 'transactions') {
-            const dateRange = { start: filters.start.value, end: filters.end.value };
-            const filteredForTable = filterTransactions(allTransactions, dateRange, filters.type.value, filters.category.value);
-            renderTable(filteredForTable);
+            const filtered = filterTransactions(allTransactions, { start: filters.start.value, end: filters.end.value }, filters.type.value, filters.category.value);
+            renderTable(filtered);
         } else if (activeView === 'reports') {
-            const dateRange = { start: filters.reportsStart.value, end: filters.reportsEnd.value };
-            const filteredForReports = filterTransactions(allTransactions, dateRange);
-            renderReportCharts(filteredForReports);
+            const filtered = filterTransactions(allTransactions, { start: filters.reportsStart.value, end: filters.reportsEnd.value });
+            renderReportCharts(filtered);
         }
     }
 
+    // --- Chart Rendering ---
+    function renderDashboardCharts(transactions) {
+        // Doughnut Chart
+        const doughnutCtx = document.getElementById('dashboardExpensesChart').getContext('2d');
+        const expenses = transactions.filter(tx => tx.type === 'Egreso').reduce((acc, tx) => {
+            acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc; }, {});
+        if (dashboardExpensesChart) dashboardExpensesChart.destroy();
+        dashboardExpensesChart = new Chart(doughnutCtx, {
+            type: 'doughnut', data: { labels: Object.keys(expenses), datasets: [{ data: Object.values(expenses), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'], hoverOffset: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+        // Monthly Bar chart
+        const barCtx = document.getElementById('dashboardMonthlyChart').getContext('2d');
+        const monthly = transactions.reduce((acc, tx) => {
+            const month = dayjs(tx.date).format('YYYY-MM');
+            if (!acc[month]) acc[month] = { income: 0, expense: 0 };
+            if (tx.type === 'Ingreso') acc[month].income += tx.amount;
+            if (tx.type === 'Egreso') acc[month].expense += tx.amount;
+            return acc; }, {});
+        const sorted = Object.keys(monthly).sort();
+        if (dashboardMonthlyChart) dashboardMonthlyChart.destroy();
+        dashboardMonthlyChart = new Chart(barCtx, {
+            type: 'bar', data: { labels: sorted.map(m => dayjs(m).format('MMM YY')), datasets: [{ label: 'Ingresos', data: sorted.map(m => monthly[m].income), backgroundColor: 'rgba(34, 197, 94, 0.6)' }, { label: 'Egresos', data: sorted.map(m => monthly[m].expense), backgroundColor: 'rgba(239, 68, 68, 0.6)' }] },
+            options: { scales: { y: { beginAtZero: true } }, responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function renderReportCharts(transactions) {
+        // Balance Evolution
+        const evolutionCtx = document.getElementById('reportsBalanceEvolutionChart').getContext('2d');
+        const sortedTx = [...transactions].sort((a,b) => dayjs(a.date).diff(dayjs(b.date)));
+        let cumulativeBalance = 0;
+        const balanceData = sortedTx.map(tx => {
+            if (tx.type === 'Ingreso') cumulativeBalance += tx.amount;
+            if (tx.type === 'Egreso') cumulativeBalance -= tx.amount;
+            return { x: dayjs(tx.date).valueOf(), y: cumulativeBalance };
+        });
+        if (reportsBalanceEvolutionChart) reportsBalanceEvolutionChart.destroy();
+        reportsBalanceEvolutionChart = new Chart(evolutionCtx, {
+            type: 'line', data: { datasets: [{ label: 'Balance', data: balanceData, borderColor: 'rgb(79, 70, 229)', tension: 0.1, fill: true, backgroundColor: 'rgba(79, 70, 229, 0.1)' }] },
+            options: { scales: { x: { type: 'time', time: { unit: 'day', tooltipFormat: 'DD MMM YYYY', displayFormats: { day: 'DD MMM' } } } }, responsive: true, maintainAspectRatio: false }
+        });
+
+        const expensesByCat = transactions.filter(tx => tx.type === 'Egreso').reduce((acc, tx) => {
+            acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc; }, {});
+        
+        // Top 5 Expenses Table
+        const top5 = Object.entries(expensesByCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const topExpensesContainer = document.getElementById('reportsTopExpenses');
+        topExpensesContainer.innerHTML = top5.length ? `<table class="w-full text-sm"><tbody>${top5.map(([cat, amount]) => `<tr class="border-b last:border-b-0"><td class="py-3 font-medium">${cat}</td><td class="py-3 text-right text-red-600 font-semibold">${formatCurrency(amount)}</td></tr>`).join('')}</tbody></table>` : `<p class="text-gray-500 text-center py-10">No hay gastos en este período.</p>`;
+
+        // Income by Category
+        const incomeCtx = document.getElementById('reportsIncomeChart').getContext('2d');
+        const incomeByCat = transactions.filter(tx => tx.type === 'Ingreso').reduce((acc, tx) => {
+            acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc; }, {});
+        if (reportsIncomeChart) reportsIncomeChart.destroy();
+        reportsIncomeChart = new Chart(incomeCtx, { type: 'doughnut', data: { labels: Object.keys(incomeByCat), datasets: [{ data: Object.values(incomeByCat), backgroundColor: ['#22c55e', '#84cc16', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
+
+        // Expenses by Category
+        const expensesCtx = document.getElementById('reportsExpensesChart').getContext('2d');
+        if (reportsExpensesChart) reportsExpensesChart.destroy();
+        reportsExpensesChart = new Chart(expensesCtx, { type: 'doughnut', data: { labels: Object.keys(expensesByCat), datasets: [{ data: Object.values(expensesByCat), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#d946ef', '#be185d'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
+
+        // Balance by Category
+        const balanceCtx = document.getElementById('reportsBalanceByCategoryChart').getContext('2d');
+        const balanceByCat = transactions.reduce((acc, tx) => {
+            if (!acc[tx.category]) acc[tx.category] = { income: 0, expense: 0 };
+            if (tx.type === 'Ingreso') acc[tx.category].income += tx.amount;
+            if (tx.type === 'Egreso') acc[tx.category].expense += tx.amount;
+            return acc; }, {});
+        const categories = Object.keys(balanceByCat);
+        if (reportsBalanceByCategoryChart) reportsBalanceByCategoryChart.destroy();
+        reportsBalanceByCategoryChart = new Chart(balanceCtx, { type: 'bar', data: { labels: categories, datasets: [{ label: 'Ingresos', data: categories.map(cat => balanceByCat[cat].income), backgroundColor: 'rgba(34, 197, 94, 0.6)' }, { label: 'Egresos', data: categories.map(cat => balanceByCat[cat].expense), backgroundColor: 'rgba(239, 68, 68, 0.6)' }] }, options: { scales: { x: { stacked: false }, y: { stacked: false, beginAtZero: true } }, responsive: true, maintainAspectRatio: false } });
+    }
+
+    // --- Helper & Table Functions ---
+    async function processRecurringTransactions() {
+        const batch = writeBatch(db);
+        let hasUpdates = false;
+        for (const item of allRecurring) {
+            let lastGenerated = dayjs(item.lastGenerated);
+            let nextGenerationDate = lastGenerated.add(1, item.frequency === 'monthly' ? 'month' : 'week');
+            while (nextGenerationDate.isBefore(dayjs()) || nextGenerationDate.isSame(dayjs(), 'day')) {
+                hasUpdates = true;
+                batch.set(doc(collection(db, getCollectionPath('transactions'))), {
+                    date: nextGenerationDate.format('YYYY-MM-DD'),
+                    description: item.description, category: item.category,
+                    amount: item.amount, type: item.type, settled: true,
+                    recurringSourceId: item.id
+                });
+                lastGenerated = nextGenerationDate;
+                nextGenerationDate = lastGenerated.add(1, item.frequency === 'monthly' ? 'month' : 'week');
+            }
+            if (lastGenerated.format('YYYY-MM-DD') !== item.lastGenerated) {
+                batch.update(doc(db, getCollectionPath('recurring'), item.id), { lastGenerated: lastGenerated.format('YYYY-MM-DD') });
+            }
+        }
+        if (hasUpdates) await batch.commit();
+    }
+    
     function renderTable(transactions) {
         tableBody.innerHTML = '';
         noTransactionsMsg.style.display = transactions.length === 0 ? 'block' : 'none';
-
         transactions.forEach(tx => {
             const typeInfo = getTypeInfo(tx.type);
             const tr = document.createElement('tr');
@@ -1060,39 +1087,31 @@
                 <td class="px-6 py-4">${dayjs(tx.date).format('DD/MM/YYYY')}</td>
                 <td class="px-6 py-4 font-medium text-gray-900 ${tx.settled ? 'line-through' : ''}">${tx.description}</td>
                 <td class="px-6 py-4">${tx.category}</td>
-                <td class="px-6 py-4">
-                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${typeInfo.bgColor} ${typeInfo.textColor}">${tx.type}</span>
-                </td>
+                <td class="px-6 py-4"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${typeInfo.bgColor} ${typeInfo.textColor}">${tx.type}</span></td>
                 <td class="px-6 py-4 text-right font-semibold ${typeInfo.textColor}">${formatCurrency(tx.amount)}</td>
                 <td class="px-6 py-4 text-center space-x-3">
-                    ${(tx.type === 'A Cobrar' || tx.type === 'A Pagar') && !tx.settled ? 
-                    `<button title="Marcar como pagado/cobrado" data-id="${tx.id}" data-type="${tx.type}" data-amount="${tx.amount}" data-desc="${tx.description}" data-cat="${tx.category}" class="settle-btn text-green-500 hover:text-green-700"><i class="fas fa-check-circle"></i></button>` : ''}
+                    ${!tx.settled && (tx.type === 'A Cobrar' || tx.type === 'A Pagar') ? `<button title="Marcar como pagado/cobrado" data-id="${tx.id}" data-type="${tx.type}" data-amount="${tx.amount}" data-desc="${tx.description}" data-cat="${tx.category}" class="settle-btn text-green-500 hover:text-green-700"><i class="fas fa-check-circle"></i></button>` : ''}
                     <button title="Editar" data-id="${tx.id}" class="edit-btn text-blue-500 hover:text-blue-700"><i class="fas fa-pencil-alt"></i></button>
                     <button title="Eliminar" data-id="${tx.id}" class="delete-btn text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
                 </td>
             `;
             tableBody.appendChild(tr);
         });
-        
         tableBody.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', () => deleteTransaction(b.dataset.id)));
-        tableBody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', () => {
-            const tx = allTransactions.find(t => t.id === b.dataset.id);
-            if(tx) openTransactionModal(tx);
-        }));
+        tableBody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', () => openTransactionModal(allTransactions.find(t => t.id === b.dataset.id))));
         tableBody.querySelectorAll('.settle-btn').forEach(b => b.addEventListener('click', () => settleTransaction(b.dataset.id, b.dataset.type, parseFloat(b.dataset.amount), b.dataset.desc, b.dataset.cat)));
     }
     
     function updateDashboard(transactions) {
         const totals = transactions.reduce((acc, tx) => {
             if (tx.type === 'Ingreso') acc.income += tx.amount;
-            if (tx.type === 'Egreso') acc.expense += tx.amount;
-            if (tx.type === 'A Cobrar' && !tx.settled) acc.receivable += tx.amount;
-            if (tx.type === 'A Pagar' && !tx.settled) acc.payable += tx.amount;
+            else if (tx.type === 'Egreso') acc.expense += tx.amount;
+            else if (tx.type === 'A Cobrar' && !tx.settled) acc.receivable += tx.amount;
+            else if (tx.type === 'A Pagar' && !tx.settled) acc.payable += tx.amount;
             return acc;
         }, { income: 0, expense: 0, receivable: 0, payable: 0 });
 
         const balance = totals.income - totals.expense;
-        
         document.getElementById('balance').textContent = formatCurrency(balance);
         document.getElementById('total-income').textContent = formatCurrency(totals.income);
         document.getElementById('total-expense').textContent = formatCurrency(totals.expense);
@@ -1103,13 +1122,9 @@
 
     function renderDashboardBudgets() {
         const container = document.getElementById('budgets-summary-list');
-        container.innerHTML = '';
+        container.innerHTML = Object.keys(allBudgets).length ? '' : `<p class="text-gray-500">No has definido presupuestos. Ve a Configuración.</p>`;
         const spending = calculateCurrentMonthSpending();
-        if (Object.keys(allBudgets).length === 0) {
-            container.innerHTML = `<p class="text-gray-500">No has definido presupuestos. Ve a Configuración > Presupuestos para empezar.</p>`;
-            return;
-        }
-         Object.entries(allBudgets).forEach(([category, limit]) => {
+        Object.entries(allBudgets).forEach(([category, limit]) => {
             const spent = spending[category] || 0;
             const percentage = limit > 0 ? (spent / limit) * 100 : 0;
             const color = percentage > 100 ? 'bg-red-500' : (percentage > 80 ? 'bg-yellow-500' : 'bg-green-500');
@@ -1125,164 +1140,6 @@
         });
     }
 
-    function renderDashboardCharts(transactions) {
-        // Doughnut Chart
-        const doughnutCtx = document.getElementById('dashboardExpensesChart').getContext('2d');
-        const expenses = transactions.filter(tx => tx.type === 'Egreso').reduce((acc, tx) => {
-            acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-            return acc;
-        }, {});
-        if (dashboardExpensesChart) dashboardExpensesChart.destroy();
-        dashboardExpensesChart = new Chart(doughnutCtx, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(expenses),
-                datasets: [{ data: Object.values(expenses), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'], hoverOffset: 4 }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-        });
-
-        // Monthly Bar chart
-        const barCtx = document.getElementById('dashboardMonthlyChart').getContext('2d');
-        const monthly = transactions.reduce((acc, tx) => {
-            const month = dayjs(tx.date).format('YYYY-MM');
-            if (!acc[month]) acc[month] = { income: 0, expense: 0 };
-            if (tx.type === 'Ingreso') acc[month].income += tx.amount;
-            if (tx.type === 'Egreso') acc[month].expense += tx.amount;
-            return acc;
-        }, {});
-        const sorted = Object.keys(monthly).sort();
-        if (dashboardMonthlyChart) dashboardMonthlyChart.destroy();
-        dashboardMonthlyChart = new Chart(barCtx, {
-            type: 'bar',
-            data: {
-                labels: sorted.map(m => dayjs(m).format('MMM YY')),
-                datasets: [
-                    { label: 'Ingresos', data: sorted.map(m => monthly[m].income), backgroundColor: 'rgba(34, 197, 94, 0.6)' },
-                    { label: 'Egresos', data: sorted.map(m => monthly[m].expense), backgroundColor: 'rgba(239, 68, 68, 0.6)' }
-                ]
-            },
-            options: { scales: { y: { beginAtZero: true } }, responsive: true, maintainAspectRatio: false }
-        });
-    }
-
-    function renderReportCharts(transactions) {
-        // Balance Evolution
-        const evolutionCtx = document.getElementById('reportsBalanceEvolutionChart').getContext('2d');
-        const sortedTx = [...transactions].sort((a, b) => dayjs(a.date).isAfter(dayjs(b.date)) ? 1 : -1);
-        let cumulativeBalance = 0;
-        const balanceData = sortedTx.map(tx => {
-            if (tx.type === 'Ingreso') cumulativeBalance += tx.amount;
-            if (tx.type === 'Egreso') cumulativeBalance -= tx.amount;
-            return { x: dayjs(tx.date).valueOf(), y: cumulativeBalance };
-        });
-        if (reportsBalanceEvolutionChart) reportsBalanceEvolutionChart.destroy();
-        reportsBalanceEvolutionChart = new Chart(evolutionCtx, {
-            type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Balance',
-                    data: balanceData,
-                    borderColor: 'rgb(79, 70, 229)',
-                    tension: 0.1,
-                    fill: true,
-                    backgroundColor: 'rgba(79, 70, 229, 0.1)'
-                }]
-            },
-            options: {
-                scales: {
-                    x: { 
-                        type: 'time', 
-                        time: { 
-                            unit: 'day', 
-                            tooltipFormat: 'DD MMM YYYY',
-                            displayFormats: {
-                                day: 'DD MMM'
-                            }
-                        } 
-                    }
-                },
-                responsive: true, maintainAspectRatio: false
-            }
-        });
-
-        // Top 5 Expenses Table
-        const topExpensesContainer = document.getElementById('reportsTopExpenses');
-        const expensesByCat = transactions.filter(tx => tx.type === 'Egreso').reduce((acc, tx) => {
-            acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-            return acc;
-        }, {});
-        const top5 = Object.entries(expensesByCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
-        if (top5.length > 0) {
-            topExpensesContainer.innerHTML = `
-                <table class="w-full text-sm">
-                    <tbody>
-                        ${top5.map(([cat, amount]) => `
-                            <tr class="border-b last:border-b-0">
-                                <td class="py-3 font-medium">${cat}</td>
-                                <td class="py-3 text-right text-red-600 font-semibold">${formatCurrency(amount)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        } else {
-            topExpensesContainer.innerHTML = `<p class="text-gray-500 text-center py-10">No hay gastos en este período.</p>`;
-        }
-
-
-        // Income by Category
-        const incomeCtx = document.getElementById('reportsIncomeChart').getContext('2d');
-        const incomeByCat = transactions.filter(tx => tx.type === 'Ingreso').reduce((acc, tx) => {
-            acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-            return acc;
-        }, {});
-        if (reportsIncomeChart) reportsIncomeChart.destroy();
-        reportsIncomeChart = new Chart(incomeCtx, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(incomeByCat),
-                datasets: [{ data: Object.values(incomeByCat), backgroundColor: ['#22c55e', '#84cc16', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6'], hoverOffset: 4 }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-        });
-
-        // Expenses by Category
-        const expensesCtx = document.getElementById('reportsExpensesChart').getContext('2d');
-        if (reportsExpensesChart) reportsExpensesChart.destroy();
-        reportsExpensesChart = new Chart(expensesCtx, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(expensesByCat),
-                datasets: [{ data: Object.values(expensesByCat), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#d946ef', '#be185d'], hoverOffset: 4 }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-        });
-
-        // Balance by Category
-        const balanceCtx = document.getElementById('reportsBalanceByCategoryChart').getContext('2d');
-        const balanceByCat = transactions.reduce((acc, tx) => {
-            if (!acc[tx.category]) acc[tx.category] = { income: 0, expense: 0 };
-            if (tx.type === 'Ingreso') acc[tx.category].income += tx.amount;
-            if (tx.type === 'Egreso') acc[tx.category].expense += tx.amount;
-            return acc;
-        }, {});
-        const categories = Object.keys(balanceByCat);
-        if (reportsBalanceByCategoryChart) reportsBalanceByCategoryChart.destroy();
-        reportsBalanceByCategoryChart = new Chart(balanceCtx, {
-            type: 'bar',
-            data: {
-                labels: categories,
-                datasets: [
-                    { label: 'Ingresos', data: categories.map(cat => balanceByCat[cat].income), backgroundColor: 'rgba(34, 197, 94, 0.6)' },
-                    { label: 'Egresos', data: categories.map(cat => balanceByCat[cat].expense), backgroundColor: 'rgba(239, 68, 68, 0.6)' }
-                ]
-            },
-            options: { scales: { x: { stacked: false }, y: { stacked: false, beginAtZero: true } }, responsive: true, maintainAspectRatio: false }
-        });
-    }
-
-    // --- Helper Functions ---
     function formatCurrency(value) { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value); }
     function getTypeInfo(type) {
         switch (type) {
@@ -1296,7 +1153,7 @@
     
     // --- App Initialization ---
     styleLogo();
-    signIn();
+    initializeUserSession();
 
 </script>
 </body>
