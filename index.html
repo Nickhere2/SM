@@ -153,7 +153,7 @@
 </head>
 <body class="antialiased">
 
-<div class="flex h-screen bg-gray-100">
+<div id="app-container" class="flex h-screen bg-gray-100">
     <!-- Sidebar -->
     <aside class="w-64 bg-sidebar-bg shadow-lg flex-shrink-0 flex flex-col" style="background-color: var(--sidebar-bg);">
         <div class="p-5 border-b border-[var(--border-color)]">
@@ -502,11 +502,24 @@
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc, getDoc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     // --- Firebase Config ---
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO" };
+    const userFirebaseConfig = {
+      // Pega aquí la configuración de tu proyecto de Firebase
+      // apiKey: "AIza...",
+      // authDomain: "tu-proyecto.firebaseapp.com",
+      // projectId: "tu-proyecto",
+      // etc...
+    };
+    
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-    
+
     // --- Firebase Initialization ---
+    if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "DEMO") {
+        document.getElementById('app-container').innerHTML = '<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #111827;"><h1>Configuración de Firebase Requerida</h1><p>Para usar esta aplicación, debes configurar tus propias credenciales de Firebase en el archivo HTML.</p><p style="margin-top: 1rem; font-size: 0.9rem; color: #6b7280;">Por favor, sigue las instrucciones en los comentarios del código para crear un proyecto y añadir tu configuración.</p></div>';
+        throw new Error("Firebase config is missing or is using DEMO values. App cannot start.");
+    }
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
@@ -544,18 +557,17 @@
     async function initializeUserSession() {
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // User is signed in.
                 userId = user.uid;
                 document.getElementById('user-id').textContent = userId;
                 document.getElementById('user-info').classList.remove('hidden');
                 listenToAllData();
             } else {
-                 // No user is signed in.
                 console.log("No user signed in. Attempting sign in...");
             }
         });
 
         try {
+            if (auth.currentUser) return; // Already signed in
             if (initialAuthToken) {
                 await signInWithCustomToken(auth, initialAuthToken);
             } else {
@@ -563,7 +575,9 @@
             }
         } catch (error) {
             console.error("Authentication failed:", error);
-            // Optionally, display an error message to the user.
+            if (error.code === 'auth/api-key-not-valid') {
+                 document.getElementById('app-container').innerHTML = '<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #111827;"><h1>Error de Configuración de Firebase</h1><p>La clave de API no es válida. Asegúrate de haber copiado y pegado correctamente la configuración de tu proyecto de Firebase en el archivo HTML.</p></div>';
+            }
         }
     }
 
