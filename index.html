@@ -153,7 +153,28 @@
 </head>
 <body class="antialiased">
 
-<div id="app-container" class="flex h-screen bg-gray-100">
+<div id="auth-overlay" class="fixed inset-0 bg-gray-100 z-50 flex items-center justify-center">
+    <div class="text-center p-8 bg-white rounded-lg shadow-xl max-w-sm mx-auto">
+        <div id="logo-container-auth" class="font-bold text-3xl text-white text-center mb-6">
+            <div class="flex justify-center -mb-2">
+                <span class="logo-s">S</span><span class="logo-u">U</span><span class="logo-e">E</span><span class="logo-n">Ñ</span><span class="logo-o">O</span><span class="logo-s2">S</span>
+            </div>
+            <div class="flex justify-center">
+                <span class="logo-m">M</span><span class="logo-a">Á</span><span class="logo-g">G</span><span class="logo-i">I</span><span class="logo-c">C</span><span class="logo-o2">O</span><span class="logo-s3">S</span>
+            </div>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Bienvenido a tu Gestor Financiero</h1>
+        <p class="text-gray-600 mb-8">Inicia sesión de forma segura con tu cuenta de Google para acceder a tus datos.</p>
+        <button id="login-btn" class="bg-white hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 border border-gray-300 rounded-lg shadow-sm flex items-center justify-center w-full">
+            <svg class="w-5 h-5 mr-3" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.35 6.53C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6.03C44.19 36.83 47 31.17 47 24.55z"></path><path fill="#FBBC05" d="M10.91 28.75c-.39-.78-.62-1.63-.62-2.5s.23-1.72.62-2.5L2.56 13.22C.94 16.63 0 20.7 0 25c0 4.3.94 8.37 2.56 11.78l8.35-6.03z"></path><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.82l-7.73-6.03c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.2-13.47-9.91l-8.35 6.53C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
+            Ingresar con Google
+        </button>
+        <p id="auth-error" class="text-red-500 text-sm mt-4 hidden"></p>
+    </div>
+</div>
+
+
+<div id="app-container" class="flex h-screen bg-gray-100 hidden">
     <!-- Sidebar -->
     <aside class="w-64 bg-sidebar-bg shadow-lg flex-shrink-0 flex flex-col" style="background-color: var(--sidebar-bg);">
         <div class="p-5 border-b border-[var(--border-color)]">
@@ -185,9 +206,10 @@
             </a>
         </nav>
         <div class="p-4 border-t border-[var(--border-color)]">
-             <div id="user-info" class="p-3 bg-indigo-50 text-indigo-800 rounded-lg text-sm hidden">
-                 <p class="font-semibold">ID de Usuario:</p>
-                <code id="user-id" class="bg-indigo-100 text-xs p-1 rounded break-all">Cargando...</code>
+             <div id="user-info" class="p-3 bg-indigo-50 text-indigo-800 rounded-lg text-sm">
+                 <p class="font-semibold" id="user-display-name"></p>
+                 <p class="text-xs" id="user-email"></p>
+                <button id="logout-btn" class="text-xs text-indigo-600 hover:underline mt-2">Cerrar Sesión</button>
             </div>
         </div>
     </aside>
@@ -498,26 +520,27 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc, getDoc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     // --- Firebase Config ---
     const userFirebaseConfig = {
-      // Pega aquí la configuración de tu proyecto de Firebase
-      // apiKey: "AIza...",
-      // authDomain: "tu-proyecto.firebaseapp.com",
-      // projectId: "tu-proyecto",
-      // etc...
+      apiKey: "AIzaSyADWtwmPJb75PupfRK8VJ4SvTBNGV-4178",
+      authDomain: "smagicos-64104.firebaseapp.com",
+      projectId: "smagicos-64104",
+      storageBucket: "smagicos-64104.appspot.com",
+      messagingSenderId: "127993747283",
+      appId: "1:127993747283:web:4a3ec38883b8333ec573a6",
+      measurementId: "G-5MBW4K7F4Y"
     };
     
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
     // --- Firebase Initialization ---
-    if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === "DEMO") {
-        document.getElementById('app-container').innerHTML = '<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #111827;"><h1>Configuración de Firebase Requerida</h1><p>Para usar esta aplicación, debes configurar tus propias credenciales de Firebase en el archivo HTML.</p><p style="margin-top: 1rem; font-size: 0.9rem; color: #6b7280;">Por favor, sigue las instrucciones en los comentarios del código para crear un proyecto y añadir tu configuración.</p></div>';
-        throw new Error("Firebase config is missing or is using DEMO values. App cannot start.");
+    if (!firebaseConfig || !firebaseConfig.apiKey || (userFirebaseConfig && !userFirebaseConfig.projectId)) {
+        document.body.innerHTML = '<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #111827;"><h1>Configuración de Firebase Requerida</h1><p>Para usar esta aplicación, debes configurar tus propias credenciales de Firebase en el archivo HTML.</p><p style="margin-top: 1rem; font-size: 0.9rem; color: #6b7280;">Por favor, sigue las instrucciones en los comentarios del código para crear un proyecto y añadir tu configuración.</p></div>';
+        throw new Error("Firebase config is missing or is using placeholder values. App cannot start.");
     }
 
     const app = initializeApp(firebaseConfig);
@@ -546,40 +569,59 @@
     // --- Logo Styling ---
     function styleLogo() {
         const logoColors = ['#55a630', '#f97316', '#facc15', '#ef4444', '#22c55e', '#a855f7', '#3b82f6', '#ec4899', '#f97316', '#55a630', '#facc15', '#ef4444', '#22c55e'];
-        document.querySelectorAll('#logo-container span').forEach((span, index) => {
+        document.querySelectorAll('#logo-container span, #logo-container-auth span').forEach((span, index) => {
             span.style.backgroundColor = logoColors[index % logoColors.length];
             const rotation = Math.random() * 8 - 4; // -4 to 4 degrees
             span.style.transform = `rotate(${rotation}deg)`;
         });
     }
 
-    // --- Session Management & Authentication ---
-    async function initializeUserSession() {
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                userId = user.uid;
-                document.getElementById('user-id').textContent = userId;
-                document.getElementById('user-info').classList.remove('hidden');
-                listenToAllData();
-            } else {
-                console.log("No user signed in. Attempting sign in...");
-            }
-        });
+    // --- Authentication ---
+    const authOverlay = document.getElementById('auth-overlay');
+    const appContainer = document.getElementById('app-container');
+    const loginBtn = document.getElementById('login-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const authError = document.getElementById('auth-error');
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        try {
-            if (auth.currentUser) return; // Already signed in
-            if (initialAuthToken) {
-                await signInWithCustomToken(auth, initialAuthToken);
-            } else {
-                await signInAnonymously(auth);
-            }
-        } catch (error) {
-            console.error("Authentication failed:", error);
-            if (error.code === 'auth/api-key-not-valid') {
-                 document.getElementById('app-container').innerHTML = '<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #111827;"><h1>Error de Configuración de Firebase</h1><p>La clave de API no es válida. Asegúrate de haber copiado y pegado correctamente la configuración de tu proyecto de Firebase en el archivo HTML.</p></div>';
-            }
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // User is signed in.
+            userId = user.uid;
+            document.getElementById('user-display-name').textContent = user.displayName || 'Usuario';
+            document.getElementById('user-email').textContent = user.email;
+
+            authOverlay.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+
+            listenToAllData();
+        } else {
+            // User is signed out.
+            userId = null;
+            authOverlay.classList.remove('hidden');
+            appContainer.classList.add('hidden');
+            if (transactionsUnsubscribe) transactionsUnsubscribe();
+            if (categoriesUnsubscribe) categoriesUnsubscribe();
+            if (recurringUnsubscribe) recurringUnsubscribe();
+            if (budgetsUnsubscribe) budgetsUnsubscribe();
         }
-    }
+    });
+
+    loginBtn.addEventListener('click', async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+            await signInWithPopup(auth, provider);
+        } catch (error) {
+            console.error("Google sign-in error:", error);
+            authError.textContent = "Error al iniciar sesión. Por favor, intenta de nuevo.";
+            authError.classList.remove('hidden');
+        }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+        await signOut(auth);
+    });
+
 
     // --- UI Elements & State ---
     const views = {
@@ -731,6 +773,7 @@
 
 
     function listenToTransactions() {
+        if(transactionsUnsubscribe) transactionsUnsubscribe();
         const collectionRef = collection(db, getCollectionPath('transactions'));
         const q = query(collectionRef, orderBy('date', 'desc'));
         transactionsUnsubscribe = onSnapshot(q, (snapshot) => {
@@ -740,6 +783,7 @@
     }
     
     async function listenToCategories() {
+        if(categoriesUnsubscribe) categoriesUnsubscribe();
         const categoriesDocRef = doc(db, getSettingsDocPath('categories'));
         categoriesUnsubscribe = onSnapshot(categoriesDocRef, (doc) => {
             allCategories = doc.exists() ? doc.data().list.sort((a,b) => a.localeCompare(b)) : [];
@@ -759,6 +803,7 @@
     }
 
     function listenToRecurring() {
+        if(recurringUnsubscribe) recurringUnsubscribe();
         const collectionRef = collection(db, getCollectionPath('recurring'));
         recurringUnsubscribe = onSnapshot(query(collectionRef, orderBy('startDate')), (snapshot) => {
             allRecurring = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -768,6 +813,7 @@
     }
 
     function listenToBudgets() {
+        if(budgetsUnsubscribe) budgetsUnsubscribe();
         const budgetsDocRef = doc(db, getSettingsDocPath('budgets'));
         budgetsUnsubscribe = onSnapshot(budgetsDocRef, (doc) => {
             allBudgets = doc.exists() ? doc.data() : {};
@@ -1180,7 +1226,30 @@
     
     // --- App Initialization ---
     styleLogo();
-    initializeUserSession();
+    document.addEventListener('DOMContentLoaded', () => {
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                document.getElementById('user-display-name').textContent = user.displayName || 'Usuario';
+                document.getElementById('user-email').textContent = user.email;
+                appContainer.classList.remove('hidden');
+                authOverlay.classList.add('hidden');
+                listenToAllData();
+            } else {
+                appContainer.classList.add('hidden');
+                authOverlay.classList.remove('hidden');
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (error) {
+                        console.error("Custom token sign-in failed:", error);
+                    }
+                }
+            }
+        });
+    });
 
 </script>
 </body>
