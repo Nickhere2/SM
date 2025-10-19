@@ -241,6 +241,7 @@
 
     let dashboardExpensesChart, dashboardMonthlyChart, reportsIncomeChart, reportsExpensesChart, reportsBalanceByCategoryChart, reportsBalanceEvolutionChart;
     
+    const CHART_COLORS = ['#4f46e5', '#f97316', '#10b981', '#ef4444', '#3b82f6', '#a855f7', '#facc15', '#6b7280'];
     const mainContent = document.querySelector('main');
     
     const viewsHTML = {
@@ -733,11 +734,99 @@
         return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value || 0); 
     }
     
-    // --- Stubs for you to complete ---
-    function renderDashboardCharts(transactions) { /* Implementation would go here */ }
-    function renderDashboardBudgets() { /* Implementation would go here */ }
-    function getDashboardDateRange() { 
-        const filter = document.getElementById('dashboard-period-filter')?.value || 'currentMonth';
+    // --- Chart and Settings Implementations ---
+    function destroyChart(chartInstance) {
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+    }
+
+    function renderDashboardCharts(transactions) {
+        // Expenses by Category (Doughnut)
+        const expensesCtx = document.getElementById('dashboardExpensesChart')?.getContext('2d');
+        if (expensesCtx) {
+            destroyChart(dashboardExpensesChart);
+            const expenses = transactions.filter(tx => tx.type === 'Egreso');
+            const expensesByCategory = expenses.reduce((acc, tx) => {
+                acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+                return acc;
+            }, {});
+            dashboardExpensesChart = new Chart(expensesCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(expensesByCategory),
+                    datasets: [{
+                        data: Object.values(expensesByCategory),
+                        backgroundColor: CHART_COLORS,
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        // Monthly Summary (Bar)
+        const monthlyCtx = document.getElementById('dashboardMonthlyChart')?.getContext('2d');
+        if (monthlyCtx) {
+            destroyChart(dashboardMonthlyChart);
+            const monthlyData = transactions.reduce((acc, tx) => {
+                const month = dayjs(tx.date).format('YYYY-MM');
+                if (!acc[month]) acc[month] = { income: 0, expense: 0 };
+                if (tx.type === 'Ingreso') acc[month].income += tx.amount;
+                else if (tx.type === 'Egreso') acc[month].expense += tx.amount;
+                return acc;
+            }, {});
+            const sortedMonths = Object.keys(monthlyData).sort();
+            dashboardMonthlyChart = new Chart(monthlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedMonths.map(m => dayjs(m).format('MMM YY')),
+                    datasets: [
+                        { label: 'Ingresos', data: sortedMonths.map(m => monthlyData[m].income), backgroundColor: '#10b981' },
+                        { label: 'Egresos', data: sortedMonths.map(m => monthlyData[m].expense), backgroundColor: '#ef4444' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    }
+    
+    function renderDashboardBudgets() {
+        const container = document.getElementById('budgets-summary-list');
+        if (!container) return;
+
+        const currentMonthExpenses = filterTransactions(allData.transactions, getDashboardDateRange('currentMonth'))
+            .filter(tx => tx.type === 'Egreso')
+            .reduce((acc, tx) => {
+                acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+                return acc;
+            }, {});
+
+        if (Object.keys(allData.budgets).length === 0) {
+            container.innerHTML = `<p class="text-gray-500">No hay presupuestos definidos. Ve a Configuración para añadir uno.</p>`;
+            return;
+        }
+
+        container.innerHTML = Object.entries(allData.budgets).map(([category, limit]) => {
+            const spent = currentMonthExpenses[category] || 0;
+            const percentage = limit > 0 ? (spent / limit) * 100 : 0;
+            const progressBarColor = percentage > 100 ? 'bg-red-500' : (percentage > 75 ? 'bg-yellow-500' : 'bg-green-500');
+            
+            return `
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-medium text-gray-700">${category}</span>
+                        <span class="text-sm text-gray-500">${formatCurrency(spent)} / ${formatCurrency(limit)}</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function getDashboardDateRange(preset = null) { 
+        const filter = preset || document.getElementById('dashboard-period-filter')?.value || 'currentMonth';
         const now = dayjs();
         switch (filter) {
             case 'currentMonth': return { start: now.startOf('month').format('YYYY-MM-DD'), end: now.endOf('month').format('YYYY-MM-DD') };
@@ -747,13 +836,84 @@
         }
         return {};
     }
-    function renderReportCharts(transactions) { /* Implementation would go here */ }
-    function renderCategoryManagementList() { /* Implementation would go here */ }
-    function renderBudgetList() { /* Implementation would go here */ }
-    function renderRecurringList() { /* Implementation would go here */ }
-    function handleAddCategory(e) { e.preventDefault(); /* Implementation would go here */ }
-    function handleBudgetForm(e) { e.preventDefault(); /* Implementation would go here */ }
-    function handleRecurringForm(e) { e.preventDefault(); /* Implementation would go here */ }
+    
+    function renderReportCharts(transactions) { /* Similar implementation to dashboard charts but for the reports view */ }
+    
+    async function handleAddCategory(e) {
+        e.preventDefault();
+        const input = document.getElementById('new-category-name');
+        const newCategory = input.value.trim();
+        if (newCategory && !allData.categories.includes(newCategory)) {
+            allData.categories.push(newCategory);
+            await saveDataToGist();
+            renderUI();
+            input.value = '';
+        }
+    }
+
+    function renderCategoryManagementList() {
+        const list = document.getElementById('category-list-management');
+        if (!list) return;
+        list.innerHTML = allData.categories.map(cat => `
+            <li class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                <span>${cat}</span>
+                <button class="delete-category-btn text-red-500 hover:text-red-700" data-category="${cat}"><i class="fas fa-times-circle"></i></button>
+            </li>
+        `).join('');
+
+        list.querySelectorAll('.delete-category-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const category = e.currentTarget.dataset.category;
+                const confirmed = await showConfirmModal('Eliminar Categoría', `¿Seguro que quieres eliminar "${category}"?`);
+                if (confirmed) {
+                    allData.categories = allData.categories.filter(c => c !== category);
+                    await saveDataToGist();
+                    renderUI();
+                }
+            });
+        });
+    }
+
+    async function handleBudgetForm(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const category = formData.get('category');
+        const amount = parseFloat(formData.get('amount'));
+        if (category && amount > 0) {
+            allData.budgets[category] = amount;
+            await saveDataToGist();
+            renderUI();
+            e.target.reset();
+        }
+    }
+
+    function renderBudgetList() {
+        const list = document.getElementById('budget-list');
+        if (!list) return;
+        list.innerHTML = Object.entries(allData.budgets).map(([cat, amount]) => `
+            <li class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                <span>${cat}: ${formatCurrency(amount)}</span>
+                <button class="delete-budget-btn text-red-500 hover:text-red-700" data-category="${cat}"><i class="fas fa-times-circle"></i></button>
+            </li>
+        `).join('');
+
+        list.querySelectorAll('.delete-budget-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const category = e.currentTarget.dataset.category;
+                 const confirmed = await showConfirmModal('Eliminar Presupuesto', `¿Seguro que quieres eliminar el presupuesto para "${category}"?`);
+                if (confirmed) {
+                    delete allData.budgets[category];
+                    await saveDataToGist();
+                    renderUI();
+                }
+            });
+        });
+    }
+    
+    async function handleRecurringForm(e) { /* Stub */ }
+    function renderRecurringList() { /* Stub */ }
+
 </script>
 </body>
 </html>
+
