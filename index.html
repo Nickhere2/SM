@@ -536,8 +536,7 @@
     
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
+    
     // --- Firebase Initialization ---
     if (!firebaseConfig || !firebaseConfig.apiKey || (userFirebaseConfig && !userFirebaseConfig.projectId)) {
         document.body.innerHTML = '<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #111827;"><h1>Configuración de Firebase Requerida</h1><p>Para usar esta aplicación, debes configurar tus propias credenciales de Firebase en el archivo HTML.</p><p style="margin-top: 1rem; font-size: 0.9rem; color: #6b7280;">Por favor, sigue las instrucciones en los comentarios del código para crear un proyecto y añadir tu configuración.</p></div>';
@@ -583,6 +582,7 @@
         const loginBtn = document.getElementById('login-btn');
         const logoutBtn = document.getElementById('logout-btn');
         const authError = document.getElementById('auth-error');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         styleLogo();
 
