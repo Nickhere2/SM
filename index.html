@@ -348,7 +348,10 @@
     }
 
     function bindViewEventListeners(viewName) {
-        document.getElementById('add-transaction-btn')?.addEventListener('click', () => openTransactionModal());
+        document.getElementById('add-transaction-btn')?.addEventListener('click', () => {
+            console.log("Botón 'Añadir Transacción' clickeado!");
+            openTransactionModal();
+        });
         
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
@@ -495,8 +498,13 @@
     
     // --- MODAL AND TRANSACTION LOGIC ---
     function openTransactionModal(tx = null) {
+        console.log("Función openTransactionModal llamada.");
         const isEditing = tx !== null;
         const modalBackdrop = document.getElementById('transaction-modal-backdrop');
+        if (!modalBackdrop) {
+            console.error("¡Error crítico! El contenedor del modal ('transaction-modal-backdrop') no se encontró en el DOM.");
+            return;
+        }
         const modalContent = modalBackdrop.querySelector('.modal-content');
 
         const categoryOptions = allData.categories.map(cat => `<option value="${cat}" ${tx?.category === cat ? 'selected' : ''}>${cat}</option>`).join('');
@@ -927,4 +935,5 @@
 </script>
 </body>
 </html>
+
 
