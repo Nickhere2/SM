@@ -298,7 +298,7 @@
                 <div><label for="filter-type" class="text-sm font-medium">Tipo</label><select id="filter-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"><option value="">Todos</option><option value="Ingreso">Ingreso</option><option value="Egreso">Egreso</option><option value="A Cobrar">A Cobrar</option><option value="A Pagar">A Pagar</option></select></div>
                 <div><label for="filter-category" class="text-sm font-medium">Categoría</label><select id="filter-category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"><option value="">Todas</option></select></div>
             </div></div>
-            <div class="card"><div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b-2 border-gray-200"><tr><th class="px-6 py-3">Fecha</th><th class="px-6 py-3">Descripción</th><th class="px-6 py-3">Categoría</th><th class="px-6 py-3">Tipo</th><th class="px-6 py-3 text-right">Monto</th><th class="px-6 py-3 text-center">Acciones</th></tr></thead><tbody id="transactions-table"></tbody></table><p id="no-transactions" class="text-center text-gray-500 py-8">No hay transacciones que coincidan con los filtros.</p></div></div>`,
+            <div class="card"><div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b-2 border-gray-200"><tr><th class="px-6 py-3">Fecha</th><th class="px-6 py-3">Descripción</th><th class="px-6 py-3">Categoría</th><th class="px-6 py-3">Tipo/Estado</th><th class="px-6 py-3 text-right">Monto</th><th class="px-6 py-3 text-center">Acciones</th></tr></thead><tbody id="transactions-table"></tbody></table><p id="no-transactions" class="text-center text-gray-500 py-8">No hay transacciones que coincidan con los filtros.</p></div></div>`,
         reports: `
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Informes Contables</h1><p class="text-gray-500 mb-6">Analice sus datos financieros con filtros personalizados.</p>
             <div class="card mb-6"><div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
@@ -519,8 +519,14 @@
         const totals = transactions.reduce((acc, tx) => {
             if (tx.type === 'Ingreso') acc.income += tx.amount;
             else if (tx.type === 'Egreso') acc.expense += tx.amount;
-            else if (tx.type === 'A Cobrar' && !tx.settled) acc.receivable += tx.amount;
-            else if (tx.type === 'A Pagar' && !tx.settled) acc.payable += tx.amount;
+            else if (tx.type === 'A Cobrar' || tx.type === 'A Pagar') {
+                const totalPaid = (tx.payments || []).reduce((sum, p) => sum + p.amount, 0);
+                const outstanding = tx.amount - totalPaid;
+                if(tx.status !== 'Pagada' && tx.status !== 'Cobrada'){
+                    if(tx.type === 'A Cobrar') acc.receivable += outstanding;
+                    else acc.payable += outstanding;
+                }
+            }
             return acc;
         }, { income: 0, expense: 0, receivable: 0, payable: 0 });
 
@@ -538,7 +544,6 @@
         const modalBackdrop = document.getElementById('transaction-modal-backdrop');
         const modalContent = modalBackdrop.querySelector('.modal-content');
 
-        // If editing, bypass the choice and open the form directly
         if(tx) {
             _openTransactionForm(tx.type.includes('Cobrar') || tx.type.includes('Pagar') ? 'credit' : 'cash', tx);
             return;
@@ -586,18 +591,16 @@
                 <option value="A Pagar" ${tx?.type === 'A Pagar' ? 'selected' : ''}>A Pagar</option>
             `;
         }
-        
-        const settledSectionVisibility = (tx?.type === 'A Cobrar' || tx?.type === 'A Pagar') ? '' : 'hidden';
 
         modalContent.innerHTML = `
             <h2 class="text-xl font-bold mb-4">${isEditing ? 'Editar' : 'Añadir'} Transacción</h2>
             <form id="transaction-form" class="space-y-4">
+                <input type="hidden" name="formType" value="${formType}">
                 <div><label for="tx-type" class="block text-sm font-medium">Tipo</label><select id="tx-type" name="type" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">${typeOptions}</select></div>
                 <div><label for="tx-description" class="block text-sm font-medium">Descripción</label><input id="tx-description" type="text" name="description" value="${tx?.description || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
                 <div><label for="tx-amount" class="block text-sm font-medium">Monto</label><input id="tx-amount" type="number" name="amount" step="0.01" value="${tx?.amount || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
                 <div><label for="tx-category" class="block text-sm font-medium">Categoría</label><select id="tx-category" name="category" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">${categoryOptions}</select></div>
                 <div><label for="tx-date" class="block text-sm font-medium">Fecha</label><input id="tx-date" type="date" name="date" value="${tx?.date || new Date().toISOString().split('T')[0]}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
-                <div id="settled-section" class="${formType === 'credit' ? '' : 'hidden'}"><label class="flex items-center"><input type="checkbox" name="settled" ${tx?.settled ? 'checked' : ''} class="rounded border-gray-300 text-indigo-600 shadow-sm"><span class="ml-2 text-sm text-gray-600">Liquidada</span></label></div>
                 <div class="flex justify-end space-x-2 pt-4"><button type="button" id="modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button><button type="submit" class="btn-primary">Guardar</button></div>
             </form>
         `;
@@ -606,6 +609,114 @@
         modalContent.querySelector('#transaction-form').addEventListener('submit', (e) => handleSubmitTransaction(e, tx));
         document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
     }
+    
+    function openPaymentModal(txId) {
+        const originalTx = allData.transactions.find(t => t.id === txId);
+        if (!originalTx) return;
+
+        const modalBackdrop = document.getElementById('transaction-modal-backdrop');
+        const modalContent = modalBackdrop.querySelector('.modal-content');
+        const totalPaid = (originalTx.payments || []).reduce((sum, p) => sum + p.amount, 0);
+        const outstandingAmount = originalTx.amount - totalPaid;
+
+        const paymentHistoryHTML = (originalTx.payments && originalTx.payments.length > 0) 
+            ? `
+                <h4 class="text-md font-semibold mt-6 mb-2">Historial de Pagos</h4>
+                <ul class="space-y-2 text-sm">
+                  ${originalTx.payments.map(p => `
+                    <li class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                        <span>${dayjs(p.date).format('DD/MM/YYYY')}</span>
+                        <span class="font-medium">${formatCurrency(p.amount)}</span>
+                    </li>
+                  `).join('')}
+                </ul>`
+            : '<p class="text-sm text-gray-500 mt-4">No hay pagos registrados para esta transacción.</p>';
+
+        modalContent.innerHTML = `
+            <h2 class="text-xl font-bold mb-2">Registrar Cobro / Pago</h2>
+            <p class="text-gray-600 mb-4">Para: <span class="font-semibold">${originalTx.description}</span></p>
+            
+            <div class="bg-indigo-50 p-4 rounded-lg mb-4 text-center">
+                <p class="text-sm text-indigo-800">Monto Original</p>
+                <p class="text-2xl font-bold text-indigo-900">${formatCurrency(originalTx.amount)}</p>
+                <p class="text-sm text-red-800 mt-2">Saldo Pendiente</p>
+                <p class="text-3xl font-bold text-red-600">${formatCurrency(outstandingAmount)}</p>
+            </div>
+
+            <form id="payment-form" class="space-y-4">
+                <div>
+                    <label for="payment-amount" class="block text-sm font-medium">Monto a Registrar</label>
+                    <input id="payment-amount" type="number" name="paymentAmount" step="0.01" max="${outstandingAmount}" placeholder="${formatCurrency(outstandingAmount)}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="payment-date" class="block text-sm font-medium">Fecha del Cobro/Pago</label>
+                    <input id="payment-date" type="date" name="paymentDate" value="${new Date().toISOString().split('T')[0]}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div class="flex justify-end space-x-2 pt-4">
+                    <button type="button" id="modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                    <button type="submit" class="btn-primary">Registrar Pago</button>
+                </div>
+            </form>
+            
+            ${paymentHistoryHTML}
+        `;
+
+        modalBackdrop.classList.add('active');
+        document.getElementById('payment-form').addEventListener('submit', (e) => handlePaymentSubmit(e, originalTx.id));
+        document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+    }
+
+    async function handlePaymentSubmit(e, originalTxId) {
+        e.preventDefault();
+        const originalTx = allData.transactions.find(t => t.id === originalTxId);
+        if (!originalTx) return;
+
+        const formData = new FormData(e.target);
+        const paymentAmount = parseFloat(formData.get('paymentAmount'));
+        const paymentDate = formData.get('paymentDate');
+
+        const totalPaid = (originalTx.payments || []).reduce((sum, p) => sum + p.amount, 0);
+        const outstandingAmount = originalTx.amount - totalPaid;
+
+        if (paymentAmount <= 0 || paymentAmount > outstandingAmount) {
+            alert("El monto del pago debe ser mayor a cero y no puede exceder el saldo pendiente.");
+            return;
+        }
+
+        // 1. Create the new cash-flow transaction (Ingreso/Egreso)
+        const paymentTxId = `tx_${new Date().getTime()}`;
+        const newType = originalTx.type === 'A Cobrar' ? 'Ingreso' : 'Egreso';
+        allData.transactions.push({
+            id: paymentTxId,
+            description: `${newType === 'Ingreso' ? 'Cobro' : 'Pago'}: ${originalTx.description}`,
+            amount: paymentAmount,
+            category: originalTx.category,
+            date: paymentDate,
+            type: newType,
+            originalInvoiceId: originalTx.id
+        });
+
+        // 2. Update the original credit transaction
+        if (!originalTx.payments) {
+            originalTx.payments = [];
+        }
+        originalTx.payments.push({
+            paymentId: paymentTxId,
+            amount: paymentAmount,
+            date: paymentDate
+        });
+        
+        const newTotalPaid = totalPaid + paymentAmount;
+        if (newTotalPaid >= originalTx.amount) {
+            originalTx.status = originalTx.type === 'A Cobrar' ? 'Cobrada' : 'Pagada';
+        }
+
+        allData.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        await saveDataToGist();
+        closeModal();
+        renderUI();
+    }
+
 
     function closeModal() {
         document.querySelector('.modal-backdrop.active')?.classList.remove('active');
@@ -614,6 +725,8 @@
     async function handleSubmitTransaction(e, existingTx = null) {
         e.preventDefault();
         const formData = new FormData(e.target);
+        const formType = formData.get('formType');
+
         const transactionData = {
             id: existingTx?.id || `tx_${new Date().getTime()}`,
             description: formData.get('description'),
@@ -621,12 +734,22 @@
             category: formData.get('category'),
             date: formData.get('date'),
             type: formData.get('type'),
-            settled: ['A Cobrar', 'A Pagar'].includes(formData.get('type')) ? formData.has('settled') : undefined,
         };
+
+        if(formType === 'credit') {
+            transactionData.status = 'Pendiente';
+            transactionData.payments = existingTx?.payments || [];
+        }
+
 
         if (existingTx) {
             const index = allData.transactions.findIndex(t => t.id === existingTx.id);
-            if (index !== -1) allData.transactions[index] = transactionData;
+            if (index !== -1) {
+                // Preserve payments when editing
+                transactionData.payments = allData.transactions[index].payments || [];
+                transactionData.status = allData.transactions[index].status || 'Pendiente';
+                allData.transactions[index] = transactionData;
+            }
         } else {
             allData.transactions.push(transactionData);
         }
@@ -665,54 +788,58 @@
         noTransactionsEl.classList.toggle('hidden', transactions.length > 0);
         tableBody.innerHTML = transactions.map(tx => {
             const typeClasses = { 'Ingreso': 'bg-green-100 text-green-800', 'Egreso': 'bg-red-100 text-red-800', 'A Cobrar': 'bg-yellow-100 text-yellow-800', 'A Pagar': 'bg-orange-100 text-orange-800' };
-            let actionButtons = `<button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${tx.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button> <button class="delete-btn text-red-600 hover:text-red-900" data-id="${tx.id}" title="Eliminar"><i class="fas fa-trash"></i></button>`;
-            if ((tx.type === 'A Cobrar' || tx.type === 'A Pagar') && !tx.settled) {
-                const settleActionText = tx.type === 'A Cobrar' ? 'Cobrar' : 'Pagar';
-                actionButtons = `<button class="settle-btn bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-3 rounded-full" data-id="${tx.id}" title="Marcar como Liquidada"><i class="fas fa-check mr-1"></i> ${settleActionText}</button> ${actionButtons}`;
+            
+            let statusBadge = '';
+            if (tx.type === 'A Cobrar' || tx.type === 'A Pagar') {
+                const totalPaid = (tx.payments || []).reduce((sum, p) => sum + p.amount, 0);
+                if (tx.amount - totalPaid <= 0.01) { // Floating point safety
+                     statusBadge = `<span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">${tx.type === 'A Cobrar' ? 'Cobrada' : 'Pagada'}</span>`;
+                } else if(totalPaid > 0) {
+                     statusBadge = `<span class="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">Pago Parcial</span>`;
+                } else {
+                     statusBadge = `<span class="px-2 py-1 text-xs font-medium rounded-full ${typeClasses[tx.type]}">Pendiente</span>`;
+                }
+            } else {
+                statusBadge = `<span class="px-2 py-1 text-xs font-medium rounded-full ${typeClasses[tx.type]}">${tx.type}</span>`;
             }
+
+
+            let actionButtons = `<button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${tx.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button> <button class="delete-btn text-red-600 hover:text-red-900" data-id="${tx.id}" title="Eliminar"><i class="fas fa-trash"></i></button>`;
+            
+            const isFullyPaid = (tx.status === 'Cobrada' || tx.status === 'Pagada');
+            if ((tx.type === 'A Cobrar' || tx.type === 'A Pagar') && !isFullyPaid) {
+                const settleActionText = tx.type === 'A Cobrar' ? 'Registrar Cobro' : 'Registrar Pago';
+                actionButtons = `<button class="settle-btn bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-3 rounded-full" data-id="${tx.id}" title="${settleActionText}"><i class="fas fa-cash-register mr-1"></i></button> ${actionButtons}`;
+            }
+
             return `<tr class="bg-white border-b hover:bg-gray-50">
                     <td class="px-6 py-4">${dayjs(tx.date).format('DD/MM/YYYY')}</td>
                     <td class="px-6 py-4 font-medium text-gray-900">${tx.description}</td>
                     <td class="px-6 py-4">${tx.category}</td>
-                    <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${typeClasses[tx.type]}">${tx.type} ${tx.settled ? '(Liquidada)' : ''}</span></td>
+                    <td class="px-6 py-4">${statusBadge}</td>
                     <td class="px-6 py-4 text-right font-semibold">${formatCurrency(tx.amount)}</td>
                     <td class="px-6 py-4 text-center"><div class="flex items-center justify-center space-x-3">${actionButtons}</div></td>
                 </tr>`;
         }).join('');
         
-        tableBody.querySelectorAll('.settle-btn').forEach(btn => btn.addEventListener('click', e => handleSettleTransaction(e.currentTarget.dataset.id)));
+        tableBody.querySelectorAll('.settle-btn').forEach(btn => btn.addEventListener('click', e => openPaymentModal(e.currentTarget.dataset.id)));
         tableBody.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', e => openTransactionModal(allData.transactions.find(t => t.id === e.currentTarget.dataset.id))));
         tableBody.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', e => handleDeleteTransaction(e.currentTarget.dataset.id)));
     }
     
     async function handleDeleteTransaction(id) {
-       if(await showConfirmModal('¿Está seguro?', 'Esta acción no se puede deshacer.')) {
-           allData.transactions = allData.transactions.filter(tx => tx.id !== id);
+       if(await showConfirmModal('¿Está seguro?', 'Esta acción no se puede deshacer. Si esta transacción tiene pagos asociados, también serán eliminados.')) {
+           // Also delete associated payments
+           const txToDelete = allData.transactions.find(t => t.id === id);
+           if (txToDelete && (txToDelete.type === 'A Cobrar' || txToDelete.type === 'A Pagar')) {
+               const paymentIds = (txToDelete.payments || []).map(p => p.paymentId);
+               allData.transactions = allData.transactions.filter(t => !paymentIds.includes(t.id));
+           }
+
+           allData.transactions = allData.transactions.filter(tx => tx.id !== id && tx.originalInvoiceId !== id);
            await saveDataToGist();
            renderUI();
        }
-    }
-    
-    async function handleSettleTransaction(id) {
-        const originalTx = allData.transactions.find(t => t.id === id);
-        if (!originalTx) return;
-        const actionWord = originalTx.type === 'A Cobrar' ? 'cobro' : 'pago';
-        const newType = originalTx.type === 'A Cobrar' ? 'Ingreso' : 'Egreso';
-        if (await showConfirmModal(`Confirmar ${actionWord}`, `Esto marcará la transacción como liquidada y creará un nuevo ${newType} por ${formatCurrency(originalTx.amount)}. ¿Continuar?`)) {
-            originalTx.settled = true;
-            allData.transactions.push({
-                id: `tx_${new Date().getTime()}`,
-                description: `${newType}: ${originalTx.description}`,
-                amount: originalTx.amount,
-                category: originalTx.category,
-                date: new Date().toISOString().split('T')[0],
-                type: newType,
-                settledTxId: originalTx.id // Link to original transaction
-            });
-            allData.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-            await saveDataToGist();
-            renderUI();
-        }
     }
 
     function showConfirmModal(title, message) {
