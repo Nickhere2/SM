@@ -288,7 +288,7 @@
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Configuración</h1><p class="text-gray-500 mb-6">Gestiona categorías, presupuestos y transacciones recurrentes.</p>
             <div class="border-b border-gray-200 mb-6"><nav class="flex space-x-2" id="settings-tabs"><button class="tab-btn active" data-tab="categories">Categorías</button><button class="tab-btn" data-tab="budgets">Presupuestos</button><button class="tab-btn" data-tab="recurring">Recurrentes</button><button class="tab-btn" data-tab="connection">Conexión</button></nav></div>
             <div id="settings-content-categories"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Categoría</h3><form id="add-category-form" class="flex space-x-2"><input type="text" id="new-category-name" placeholder="Nombre de la categoría" class="flex-grow block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><button type="submit" class="btn-primary whitespace-nowrap">Añadir</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Categorías</h3><ul id="category-list-management" class="space-y-2"></ul></div></div></div>
-            <div id="settings-content-budgets" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Definir Presupuesto</h3><form id="budget-form" class="space-y-4"><select name="category" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select><input type="number" step="0.01" name="amount" placeholder="Límite mensual" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><button type="submit" class="btn-primary w-full">Guardar Presupuesto</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Presupuestos</h3><ul id="budget-list" class="space-y-4"></ul></div></div></div>
+            <div id="settings-content-budgets" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Definir Presupuesto</h3><form id="budget-form" class="space-y-4"><select name="category" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select><input type="number" step="0.01" name="amount" placeholder="Límite mensual" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><button type="submit" class="btn-primary w-full">Guardar Presupuesto</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Presupuestos</h3><ul id="budget-list" class="space-y-2"></ul></div></div></div>
             <div id="settings-content-recurring" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Recurrente</h3><form id="recurring-form" class="space-y-4"><input type="text" name="description" placeholder="Descripción" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><select name="category" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select><input type="number" step="0.01" name="amount" placeholder="Monto" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><select name="type" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="Ingreso">Ingreso</option><option value="Egreso">Egreso</option></select><select name="frequency" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="monthly">Mensual</option><option value="weekly">Semanal</option></select><div><label class="text-sm font-medium">Fecha de inicio</label><input type="date" name="startDate" class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div><button type="submit" class="btn-primary w-full">Guardar Recurrente</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Definidas</h3><ul id="recurring-list" class="space-y-2"></ul></div></div></div>
             <div id="settings-content-connection" class="hidden"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Configuración de Conexión</h3><p class="text-sm text-gray-600 mb-4">Aquí puedes borrar la configuración guardada en este navegador para conectar con otro Gist.</p><button id="reset-config-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Borrar Configuración</button></div></div>`
     };
@@ -462,7 +462,22 @@
     }
     
     function updateDashboard(transactions) {
-        // Function implementation
+        if(!document.getElementById('balance')) return;
+        const totals = transactions.reduce((acc, tx) => {
+            if (tx.type === 'Ingreso') acc.income += tx.amount;
+            else if (tx.type === 'Egreso') acc.expense += tx.amount;
+            else if (tx.type === 'A Cobrar' && !tx.settled) acc.receivable += tx.amount;
+            else if (tx.type === 'A Pagar' && !tx.settled) acc.payable += tx.amount;
+            return acc;
+        }, { income: 0, expense: 0, receivable: 0, payable: 0 });
+
+        const balance = totals.income - totals.expense;
+        document.getElementById('balance').textContent = formatCurrency(balance);
+        document.getElementById('total-income').textContent = formatCurrency(totals.income);
+        document.getElementById('total-expense').textContent = formatCurrency(totals.expense);
+        document.getElementById('total-receivable').textContent = formatCurrency(totals.receivable);
+        document.getElementById('total-payable').textContent = formatCurrency(totals.payable);
+        document.getElementById('balance').className = `text-3xl font-bold mt-2 ${balance >= 0 ? 'text-gray-800' : 'text-red-600'}`;
     }
 
     function renderDashboardCharts(transactions) {
@@ -474,11 +489,19 @@
     }
 
     function getDashboardDateRange() {
-        // Function implementation
+        return {
+            start: document.getElementById('dashboard-start-date')?.value || null,
+            end: document.getElementById('dashboard-end-date')?.value || null
+        }
     }
 
     function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '') {
-        // Function implementation
+        let filtered = [...source];
+        if (dateRange.start) filtered = filtered.filter(tx => tx.date >= dateRange.start);
+        if (dateRange.end) filtered = filtered.filter(tx => tx.date <= dateRange.end);
+        if (typeFilter) filtered = filtered.filter(tx => tx.type === typeFilter);
+        if (categoryFilter) filtered = filtered.filter(tx => tx.category === categoryFilter);
+        return filtered;
     }
 
     function populateCategoryDropdowns() {
@@ -521,7 +544,10 @@
     function handleResetConfig() {
         // Function implementation
     }
-
+    
+    function updateConnectionStatus(status, text) {
+        // Function implementation
+    }
 </script>
 </body>
 </html>
