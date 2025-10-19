@@ -480,74 +480,28 @@
         document.getElementById('balance').className = `text-3xl font-bold mt-2 ${balance >= 0 ? 'text-gray-800' : 'text-red-600'}`;
     }
 
-    function renderDashboardCharts(transactions) {
-        // Function implementation
-    }
-
-    function renderDashboardBudgets() {
-        // Function implementation
-    }
-
+    function renderDashboardCharts(transactions) {}
+    function renderDashboardBudgets() {}
     function getDashboardDateRange() {
         return {
             start: document.getElementById('dashboard-start-date')?.value || null,
             end: document.getElementById('dashboard-end-date')?.value || null
         }
     }
+    function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '') { return source; }
+    function populateCategoryDropdowns() {}
+    function renderTable(transactions) {}
+    function renderReportCharts(transactions) {}
+    function renderCategoryManagementList() {}
+    function renderBudgetList() {}
+    function renderRecurringList() {}
+    function openTransactionModal(tx = null) {}
+    function handleAddCategory(e) {}
+    function handleBudgetForm(e) {}
+    function handleRecurringForm(e) {}
+    function handleResetConfig() {}
+    function updateConnectionStatus(status, text) {}
 
-    function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '') {
-        let filtered = [...source];
-        if (dateRange.start) filtered = filtered.filter(tx => tx.date >= dateRange.start);
-        if (dateRange.end) filtered = filtered.filter(tx => tx.date <= dateRange.end);
-        if (typeFilter) filtered = filtered.filter(tx => tx.type === typeFilter);
-        if (categoryFilter) filtered = filtered.filter(tx => tx.category === categoryFilter);
-        return filtered;
-    }
-
-    function populateCategoryDropdowns() {
-        // Function implementation
-    }
-
-    function renderTable(transactions) {
-        // Function implementation
-    }
-
-    function renderReportCharts(transactions) {
-        // Function implementation
-    }
-
-    function renderCategoryManagementList() {
-        // Function implementation
-    }
-
-    function renderBudgetList() {
-        // Function implementation
-    }
-
-    function renderRecurringList() {
-        // Function implementation
-    }
-    
-    function openTransactionModal(tx = null) {
-        // Function implementation
-    }
-
-    function handleAddCategory(e) {
-        // Function implementation
-    }
-    function handleBudgetForm(e) {
-        // Function implementation
-    }
-    function handleRecurringForm(e) {
-        // Function implementation
-    }
-    function handleResetConfig() {
-        // Function implementation
-    }
-    
-    function updateConnectionStatus(status, text) {
-        // Function implementation
-    }
 </script>
 </body>
 </html>
