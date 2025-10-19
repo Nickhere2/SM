@@ -218,19 +218,17 @@
     <main class="flex-1 p-4 md:p-8 overflow-y-auto"></main>
 </div>
 
-<!-- Modal Templates -->
-<div id="modal-templates" class="hidden">
-    <div id="transaction-modal-backdrop" class="modal-backdrop">
-        <div class="modal-content card w-11/12 max-w-lg"></div>
-    </div>
-    <div id="confirm-modal-backdrop" class="modal-backdrop">
-        <div class="modal-content card w-11/12 max-w-sm">
-            <h2 id="confirm-modal-title" class="text-xl font-bold text-gray-800 mb-4"></h2>
-            <p id="confirm-modal-message" class="text-gray-600 mb-6"></p>
-            <div class="flex justify-end space-x-4">
-                <button id="confirm-modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
-                <button id="confirm-modal-confirm-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Confirmar</button>
-            </div>
+<!-- Modal Containers -->
+<div id="transaction-modal-backdrop" class="modal-backdrop">
+    <div class="modal-content card w-11/12 max-w-lg"></div>
+</div>
+<div id="confirm-modal-backdrop" class="modal-backdrop">
+    <div class="modal-content card w-11/12 max-w-sm">
+        <h2 id="confirm-modal-title" class="text-xl font-bold text-gray-800 mb-4"></h2>
+        <p id="confirm-modal-message" class="text-gray-600 mb-6"></p>
+        <div class="flex justify-end space-x-4">
+            <button id="confirm-modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+            <button id="confirm-modal-confirm-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Confirmar</button>
         </div>
     </div>
 </div>
@@ -349,7 +347,6 @@
 
     function bindViewEventListeners(viewName) {
         document.getElementById('add-transaction-btn')?.addEventListener('click', () => {
-            console.log("Botón 'Añadir Transacción' clickeado!");
             openTransactionModal();
         });
         
@@ -498,7 +495,6 @@
     
     // --- MODAL AND TRANSACTION LOGIC ---
     function openTransactionModal(tx = null) {
-        console.log("Función openTransactionModal llamada.");
         const isEditing = tx !== null;
         const modalBackdrop = document.getElementById('transaction-modal-backdrop');
         if (!modalBackdrop) {
@@ -935,5 +931,4 @@
 </script>
 </body>
 </html>
-
 
