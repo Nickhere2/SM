@@ -10,11 +10,13 @@
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isSameOrBefore.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-dayjs@1.1.2/dist/chartjs-adapter-dayjs.bundle.min.js"></script>
     <script>
         dayjs.extend(window.dayjs_plugin_utc);
         dayjs.extend(window.dayjs_plugin_timezone);
         dayjs.extend(window.dayjs_plugin_customParseFormat);
+        dayjs.extend(window.dayjs_plugin_isSameOrBefore);
         dayjs.tz.setDefault("America/Argentina/Buenos_Aires");
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -144,6 +146,20 @@
             white-space: nowrap;
             border-width: 0;
         }
+        .choice-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        .choice-btn:hover {
+            border-color: var(--primary-color);
+            background-color: #f9fafb;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -151,25 +167,26 @@
 <div id="setup-overlay" class="fixed inset-0 bg-gray-100 z-50 flex items-center justify-center hidden">
     <div class="text-center p-8 bg-white rounded-lg shadow-xl max-w-lg mx-auto">
         <h1 class="text-2xl font-bold text-gray-800 mb-2">Configuración Inicial Requerida</h1>
-        <p class="text-gray-600 mb-6">Para guardar tus datos de forma segura, necesitamos que configures tu Gist de GitHub.</p>
+        <p class="text-gray-600 mb-6">Para guardar sus datos de forma segura y privada, por favor, ingrese su Token de GitHub y el ID de su Gist secreto.</p>
         <form id="setup-form" class="space-y-4 text-left">
             <div>
                 <label for="github-token" class="block text-sm font-medium text-gray-700">GitHub Personal Access Token (classic)</label>
                 <input type="password" id="github-token" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required placeholder="ghp_...">
-                <p class="mt-1 text-xs text-gray-500">Necesita el permiso `gist`.</p>
+                <p class="mt-1 text-xs text-gray-500">Se necesita el permiso de `gist` para leer y escribir sus datos.</p>
             </div>
             <div>
                 <label for="gist-id" class="block text-sm font-medium text-gray-700">Gist ID</label>
-                <input type="text" id="gist-id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required placeholder="ID de tu Gist secreto">
+                <input type="text" id="gist-id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required placeholder="Ej: 2d85bbe6efc036c552bcfc25205ee20e">
             </div>
-             <div>
-                <label for="gist-filename" class="block text-sm font-medium text-gray-700">Nombre del archivo en Gist</label>
-                <input type="text" id="gist-filename" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required value="SM.json">
-            </div>
+            <div id="setup-feedback" class="text-sm text-red-600"></div>
             <div class="pt-4">
-                <button type="submit" class="btn-primary w-full">Guardar y Empezar</button>
+                <button type="submit" class="btn-primary w-full flex items-center justify-center">
+                    <span id="setup-btn-text">Guardar y Conectar</span>
+                    <i id="setup-spinner" class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                </button>
             </div>
         </form>
+         <p class="text-xs text-gray-500 mt-4">La aplicación usará el archivo `SueñosMagicosData.json` dentro del Gist que proporcione.</p>
     </div>
 </div>
 
@@ -238,7 +255,7 @@
     // --- GITHUB GIST CONFIGURATION ---
     let GITHUB_TOKEN = ""; 
     let GIST_ID = "";
-    let GIST_FILENAME = "SM.json";
+    const GIST_FILENAME = "SueñosMagicosData.json";
     // ------------------------------------
 
     let allData = {
@@ -246,6 +263,7 @@
         categories: ["Ventas", "Servicios", "Sueldos", "Alquiler", "Insumos", "Impuestos", "Otros"],
         recurring: [],
         budgets: {},
+        meta: { lastRecurringCheck: null }
     };
 
     let dashboardExpensesChart, dashboardMonthlyChart, reportsIncomeChart, reportsExpensesChart, reportsBalanceByCategoryChart, reportsBalanceEvolutionChart;
@@ -256,24 +274,24 @@
     const viewsHTML = {
         dashboard: `
             <header class="mb-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-                <div><h1 class="text-3xl font-bold text-gray-800">Panel Principal</h1><p class="text-gray-500">Resumen general de tus finanzas.</p></div>
+                <div><h1 class="text-3xl font-bold text-gray-800">Panel Principal</h1><p class="text-gray-500">Resumen general de sus finanzas.</p></div>
                 <button id="add-transaction-btn" class="btn-primary w-full md:w-auto"><i class="fas fa-plus mr-2"></i>Añadir Transacción</button>
             </header>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
                 <div class="card sm:col-span-2 lg:col-span-1"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-balance-scale mr-2 text-gray-400"></i>Balance Total</h3><p id="balance" class="text-3xl font-bold text-gray-800 mt-2">$0.00</p></div>
-                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-arrow-up mr-2 text-green-400"></i>Ingresos</h3><p id="total-income" class="text-2xl font-semibold mt-2 text-green-600">$0.00</p></div>
-                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-arrow-down mr-2 text-red-400"></i>Egresos</h3><p id="total-expense" class="text-2xl font-semibold mt-2 text-red-600">$0.00</p></div>
-                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-hourglass-half mr-2 text-yellow-400"></i>A Cobrar</h3><p id="total-receivable" class="text-2xl font-semibold mt-2 text-yellow-600">$0.00</p></div>
-                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-file-invoice-dollar mr-2 text-orange-400"></i>A Pagar</h3><p id="total-payable" class="text-2xl font-semibold mt-2 text-orange-600">$0.00</p></div>
+                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-arrow-up mr-2 text-green-400"></i>Ingresos (Realizados)</h3><p id="total-income" class="text-2xl font-semibold mt-2 text-green-600">$0.00</p></div>
+                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-arrow-down mr-2 text-red-400"></i>Egresos (Realizados)</h3><p id="total-expense" class="text-2xl font-semibold mt-2 text-red-600">$0.00</p></div>
+                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-hourglass-half mr-2 text-yellow-400"></i>Cuentas a Cobrar</h3><p id="total-receivable" class="text-2xl font-semibold mt-2 text-yellow-600">$0.00</p></div>
+                <div class="card"><h3 class="text-sm font-medium text-gray-500 flex items-center"><i class="fas fa-file-invoice-dollar mr-2 text-orange-400"></i>Cuentas a Pagar</h3><p id="total-payable" class="text-2xl font-semibold mt-2 text-orange-600">$0.00</p></div>
             </div>
             <div class="card mb-6"><div class="flex items-center space-x-4"><label for="dashboard-period-filter" class="text-sm font-medium text-gray-600">Mostrar gráficos de:</label><select id="dashboard-period-filter" class="block border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"><option value="currentMonth">Este Mes</option><option value="lastMonth">Mes Pasado</option><option value="currentYear">Este Año</option><option value="allTime">Todo</option></select></div></div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Egresos por Categoría</h3><div class="h-80 flex items-center justify-center"><canvas id="dashboardExpensesChart"></canvas></div></div>
-                <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Resumen Mensual</h3><div class="h-80 flex items-center justify-center"><canvas id="dashboardMonthlyChart"></canvas></div></div>
+                <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Resumen Mensual (Ingresos vs Egresos)</h3><div class="h-80 flex items-center justify-center"><canvas id="dashboardMonthlyChart"></canvas></div></div>
             </div>
             <div id="dashboard-budgets-summary" class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Resumen de Presupuestos (Mes Actual)</h3><div id="budgets-summary-list" class="space-y-4"></div></div>`,
         transactions: `
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Transacciones</h1><p class="text-gray-500 mb-6">Busca y gestiona todos tus movimientos.</p>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Libro Diario de Transacciones</h1><p class="text-gray-500 mb-6">Busque y gestione todos sus movimientos.</p>
             <div class="card mb-6"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                 <div><label for="filter-start-date" class="text-sm font-medium">Fecha Desde</label><input type="date" id="filter-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"></div>
                 <div><label for="filter-end-date" class="text-sm font-medium">Fecha Hasta</label><input type="date" id="filter-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"></div>
@@ -282,25 +300,25 @@
             </div></div>
             <div class="card"><div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b-2 border-gray-200"><tr><th class="px-6 py-3">Fecha</th><th class="px-6 py-3">Descripción</th><th class="px-6 py-3">Categoría</th><th class="px-6 py-3">Tipo</th><th class="px-6 py-3 text-right">Monto</th><th class="px-6 py-3 text-center">Acciones</th></tr></thead><tbody id="transactions-table"></tbody></table><p id="no-transactions" class="text-center text-gray-500 py-8">No hay transacciones que coincidan con los filtros.</p></div></div>`,
         reports: `
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Informes</h1><p class="text-gray-500 mb-6">Analiza tus datos financieros con filtros personalizados.</p>
-            <div class="card mb-6"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Informes Contables</h1><p class="text-gray-500 mb-6">Analice sus datos financieros con filtros personalizados.</p>
+            <div class="card mb-6"><div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                 <div><label for="reports-start-date" class="text-sm font-medium">Fecha Desde</label><input type="date" id="reports-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"></div>
                 <div><label for="reports-end-date" class="text-sm font-medium">Fecha Hasta</label><input type="date" id="reports-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"></div>
             </div></div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="card col-span-1 lg:col-span-2"><h3 class="text-lg font-semibold text-gray-700 mb-4">Evolución del Balance</h3><div class="h-80 flex items-center justify-center"><canvas id="reportsBalanceEvolutionChart"></canvas></div></div>
+                <div class="card col-span-1 lg:col-span-2"><h3 class="text-lg font-semibold text-gray-700 mb-4">Evolución del Balance (Flujo de Caja)</h3><div class="h-80 flex items-center justify-center"><canvas id="reportsBalanceEvolutionChart"></canvas></div></div>
                 <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Ingresos por Categoría</h3><div class="h-80 flex items-center justify-center"><canvas id="reportsIncomeChart"></canvas></div></div>
                 <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Egresos por Categoría</h3><div class="h-80 flex items-center justify-center"><canvas id="reportsExpensesChart"></canvas></div></div>
-                <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Top 5 Categorías de Gasto</h3><div id="reportsTopExpenses"></div></div>
-                <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Balance por Categoría</h3><div class="h-80 flex items-center justify-center"><canvas id="reportsBalanceByCategoryChart"></canvas></div></div>
+                <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Top 5 Categorías de Gasto</h3><ul id="reportsTopExpenses" class="space-y-3"></ul></div>
+                <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Balance Neto por Categoría</h3><div class="h-80 flex items-center justify-center"><canvas id="reportsBalanceByCategoryChart"></canvas></div></div>
             </div>`,
         settings: `
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Configuración</h1><p class="text-gray-500 mb-6">Gestiona categorías, presupuestos y transacciones recurrentes.</p>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Configuración</h1><p class="text-gray-500 mb-6">Gestione categorías, presupuestos y transacciones recurrentes.</p>
             <div class="border-b border-gray-200 mb-6"><nav class="flex space-x-2" id="settings-tabs"><button class="tab-btn active" data-tab="categories">Categorías</button><button class="tab-btn" data-tab="budgets">Presupuestos</button><button class="tab-btn" data-tab="recurring">Recurrentes</button><button class="tab-btn" data-tab="connection">Conexión</button></nav></div>
             <div id="settings-content-categories"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Categoría</h3><form id="add-category-form" class="flex space-x-2"><label for="new-category-name" class="sr-only">Nombre de la categoría</label><input type="text" id="new-category-name" placeholder="Nombre de la categoría" class="flex-grow block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><button type="submit" class="btn-primary whitespace-nowrap">Añadir</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Categorías</h3><ul id="category-list-management" class="space-y-2"></ul></div></div></div>
             <div id="settings-content-budgets" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Definir Presupuesto</h3><form id="budget-form" class="space-y-4"><div><label for="budget-category" class="block text-sm font-medium text-gray-700">Categoría</label><select id="budget-category" name="category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select></div><div><label for="budget-amount" class="block text-sm font-medium text-gray-700">Límite Mensual</label><input id="budget-amount" type="number" step="0.01" name="amount" placeholder="Límite mensual" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div><button type="submit" class="btn-primary w-full">Guardar Presupuesto</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Presupuestos</h3><ul id="budget-list" class="space-y-2"></ul></div></div></div>
-            <div id="settings-content-recurring" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Recurrente</h3><form id="recurring-form" class="space-y-4"><div><label for="recurring-description" class="block text-sm font-medium">Descripción</label><input id="recurring-description" type="text" name="description" placeholder="Descripción" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div><div><label for="recurring-category" class="block text-sm font-medium">Categoría</label><select id="recurring-category" name="category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select></div><div><label for="recurring-amount" class="block text-sm font-medium">Monto</label><input id="recurring-amount" type="number" step="0.01" name="amount" placeholder="Monto" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div><div><label for="recurring-type" class="block text-sm font-medium">Tipo</label><select id="recurring-type" name="type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="Ingreso">Ingreso</option><option value="Egreso">Egreso</option></select></div><div><label for="recurring-frequency" class="block text-sm font-medium">Frecuencia</label><select id="recurring-frequency" name="frequency" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="monthly">Mensual</option><option value="weekly">Semanal</option></select></div><div><label for="recurring-startDate" class="block text-sm font-medium">Fecha de inicio</label><input id="recurring-startDate" type="date" name="startDate" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div><button type="submit" class="btn-primary w-full">Guardar Recurrente</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Definidas</h3><ul id="recurring-list" class="space-y-2"></ul></div></div></div>
-            <div id="settings-content-connection" class="hidden"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Configuración de Conexión</h3><p class="text-sm text-gray-600 mb-4">Aquí puedes borrar la configuración guardada en este navegador para conectar con otro Gist.</p><button id="reset-config-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Borrar Configuración</button></div></div>`
+            <div id="settings-content-recurring" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Transacción Recurrente</h3><form id="recurring-form" class="space-y-4"><div><label for="recurring-description" class="block text-sm font-medium">Descripción</label><input id="recurring-description" type="text" name="description" placeholder="Ej: Alquiler Oficina" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div><div><label for="recurring-category" class="block text-sm font-medium">Categoría</label><select id="recurring-category" name="category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="">Seleccionar categoría...</option></select></div><div><label for="recurring-amount" class="block text-sm font-medium">Monto</label><input id="recurring-amount" type="number" step="0.01" name="amount" placeholder="Monto" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div><div><label for="recurring-type" class="block text-sm font-medium">Tipo</label><select id="recurring-type" name="type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="Ingreso">Ingreso</option><option value="Egreso">Egreso</option></select></div><div><label for="recurring-frequency" class="block text-sm font-medium">Frecuencia</label><select id="recurring-frequency" name="frequency" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="monthly">Mensual</option><option value="weekly">Semanal</option></select></div><div><label for="recurring-startDate" class="block text-sm font-medium">Fecha de Próxima Ejecución</label><input id="recurring-startDate" type="date" name="nextDate" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div><button type="submit" class="btn-primary w-full">Guardar Recurrente</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Transacciones Recurrentes Definidas</h3><ul id="recurring-list" class="space-y-2"></ul></div></div></div>
+            <div id="settings-content-connection" class="hidden"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Configuración de Conexión</h3><p class="text-sm text-gray-600 mb-4">Aquí puede borrar la configuración guardada en este navegador para conectar con otro Gist de GitHub.</p><button id="reset-config-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Borrar Configuración</button></div></div>`
     };
     
     // --- App Initialization and Core Logic ---
@@ -308,10 +326,8 @@
 
     async function main() {
         styleLogo();
-        
         GITHUB_TOKEN = localStorage.getItem('GITHUB_TOKEN');
         GIST_ID = localStorage.getItem('GIST_ID');
-        GIST_FILENAME = localStorage.getItem('GIST_FILENAME') || 'SM.json';
 
         if (!GITHUB_TOKEN || !GIST_ID) {
             document.getElementById('setup-overlay').classList.remove('hidden');
@@ -320,6 +336,7 @@
         } else {
             document.getElementById('app-container').classList.remove('hidden');
             await loadDataFromGist();
+            await processRecurringTransactions();
             showView('dashboard');
         }
     }
@@ -346,9 +363,7 @@
     }
 
     function bindViewEventListeners(viewName) {
-        document.getElementById('add-transaction-btn')?.addEventListener('click', () => {
-            openTransactionModal();
-        });
+        document.getElementById('add-transaction-btn')?.addEventListener('click', () => openTransactionModal());
         
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
@@ -359,35 +374,29 @@
         });
 
         if (viewName === 'settings') {
-            const tabs = document.getElementById('settings-tabs');
-            if(tabs){
-                tabs.addEventListener('click', (e) => {
-                    if (e.target.matches('.tab-btn')) {
-                        const tabName = e.target.dataset.tab;
-                        document.querySelectorAll('#settings-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
-                        e.target.classList.add('active');
-                        ['categories', 'budgets', 'recurring', 'connection'].forEach(content => {
-                            const el = document.getElementById(`settings-content-${content}`);
-                            if(el) el.classList.toggle('hidden', content !== tabName);
-                        });
-                    }
-                });
-            }
+            document.getElementById('settings-tabs')?.addEventListener('click', (e) => {
+                if (e.target.matches('.tab-btn')) {
+                    const tabName = e.target.dataset.tab;
+                    document.querySelectorAll('#settings-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    ['categories', 'budgets', 'recurring', 'connection'].forEach(content => {
+                        document.getElementById(`settings-content-${content}`)?.classList.toggle('hidden', content !== tabName);
+                    });
+                }
+            });
             document.getElementById('add-category-form')?.addEventListener('submit', handleAddCategory);
             document.getElementById('budget-form')?.addEventListener('submit', handleBudgetForm);
             document.getElementById('recurring-form')?.addEventListener('submit', handleRecurringForm);
             document.getElementById('reset-config-btn')?.addEventListener('click', handleResetConfig);
         }
         
-        document.querySelectorAll('#dashboard-period-filter, #reports-start-date, #reports-end-date, #filter-start-date, #filter-end-date, #filter-type, #filter-category').forEach(filter => {
-            if(filter) filter.addEventListener('change', renderUI);
-        });
+        document.querySelectorAll('#dashboard-period-filter, #reports-start-date, #reports-end-date, #filter-start-date, #filter-end-date, #filter-type, #filter-category')
+            .forEach(filter => filter?.addEventListener('change', renderUI));
     }
 
     function renderUI() {
-        const activeLink = document.querySelector('.nav-link.active');
-        if (!activeLink) return;
-        const activeView = activeLink.id.split('-')[1];
+        const activeView = document.querySelector('.nav-link.active')?.id.split('-')[1];
+        if (!activeView) return;
         
         updateDashboard(allData.transactions);
         
@@ -398,10 +407,16 @@
             renderDashboardBudgets();
         } else if (activeView === 'transactions') {
             populateCategoryDropdowns();
-            const filtered = filterTransactions(allData.transactions, { start: document.getElementById('filter-start-date').value, end: document.getElementById('filter-end-date').value }, document.getElementById('filter-type').value, document.getElementById('filter-category').value);
+            const filtered = filterTransactions(allData.transactions, { 
+                start: document.getElementById('filter-start-date').value, 
+                end: document.getElementById('filter-end-date').value 
+            }, document.getElementById('filter-type').value, document.getElementById('filter-category').value);
             renderTable(filtered);
         } else if (activeView === 'reports') {
-            const filtered = filterTransactions(allData.transactions, { start: document.getElementById('reports-start-date').value, end: document.getElementById('reports-end-date').value });
+            const filtered = filterTransactions(allData.transactions, { 
+                start: document.getElementById('reports-start-date').value, 
+                end: document.getElementById('reports-end-date').value 
+            });
             renderReportCharts(filtered);
         } else if (activeView === 'settings') {
             populateCategoryDropdowns();
@@ -415,42 +430,65 @@
         e.preventDefault();
         const token = document.getElementById('github-token').value;
         const gistId = document.getElementById('gist-id').value;
-        const filename = document.getElementById('gist-filename').value;
+        const feedbackEl = document.getElementById('setup-feedback');
+        const spinner = document.getElementById('setup-spinner');
+        const btnText = document.getElementById('setup-btn-text');
+        
+        spinner.classList.remove('hidden');
+        btnText.textContent = "Verificando...";
+        feedbackEl.textContent = "";
 
-        if (token && gistId && filename) {
+        try {
+            // Verify that the gist exists and we can access it
+            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                 headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+            });
+            if (!response.ok) {
+                 throw new Error("No se pudo acceder al Gist. Verifique el Token y el Gist ID.");
+            }
+
             localStorage.setItem('GITHUB_TOKEN', token);
             localStorage.setItem('GIST_ID', gistId);
-            localStorage.setItem('GIST_FILENAME', filename);
             GITHUB_TOKEN = token;
             GIST_ID = gistId;
-            GIST_FILENAME = filename;
 
             document.getElementById('setup-overlay').classList.add('hidden');
             document.getElementById('app-container').classList.remove('hidden');
             
             await loadDataFromGist();
             showView('dashboard');
+
+        } catch (error) {
+            feedbackEl.textContent = error.message;
+        } finally {
+            spinner.classList.add('hidden');
+            btnText.textContent = "Guardar y Conectar";
         }
     }
     
     async function loadDataFromGist() {
         updateConnectionStatus('loading', 'Cargando datos...');
         try {
-            const response = await fetch(`https://api.github.com/gists/${GIST_ID}`);
-            if (!response.ok) throw new Error(`Error al cargar Gist: ${response.statusText}`);
-            const gist = await response.json();
-            const fileName = GIST_FILENAME;
-            if (gist.files[fileName]) {
-                const content = gist.files[fileName].content;
-                if (content && content !== '{}') {
-                    allData = JSON.parse(content);
+            const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+                headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
+            });
+            if (!response.ok) {
+                // If Gist is not found, it might be a new setup. Don't throw error, just proceed with default data.
+                if (response.status === 404) {
+                     console.warn("Gist not found. Starting with a fresh dataset.");
+                     // Attempt to create the file on first save
+                } else {
+                    throw new Error(`Error al cargar Gist: ${response.statusText}`);
+                }
+            } else {
+                 const gist = await response.json();
+                if (gist.files[GIST_FILENAME]) {
+                    const content = gist.files[GIST_FILENAME].content;
+                    if (content && content !== '{}') allData = { ...allData, ...JSON.parse(content) };
                 }
             }
-             if (!allData.transactions) allData.transactions = [];
-            if (!allData.categories) allData.categories = ["Ventas", "Servicios", "Sueldos", "Alquiler", "Insumos", "Impuestos", "Otros"];
-            if (!allData.recurring) allData.recurring = [];
-            if (!allData.budgets) allData.budgets = {};
-            
+           
+            if (!allData.meta) allData.meta = { lastRecurringCheck: null };
             updateConnectionStatus("ok", "Conectado a GitHub");
         } catch (error) {
             console.error(error);
@@ -475,7 +513,9 @@
     }
     
     function updateDashboard(transactions) {
-        if(!document.getElementById('balance')) return;
+        const dashboardEl = document.getElementById('balance');
+        if(!dashboardEl) return;
+
         const totals = transactions.reduce((acc, tx) => {
             if (tx.type === 'Ingreso') acc.income += tx.amount;
             else if (tx.type === 'Egreso') acc.expense += tx.amount;
@@ -485,87 +525,86 @@
         }, { income: 0, expense: 0, receivable: 0, payable: 0 });
 
         const balance = totals.income - totals.expense;
-        document.getElementById('balance').textContent = formatCurrency(balance);
+        dashboardEl.textContent = formatCurrency(balance);
         document.getElementById('total-income').textContent = formatCurrency(totals.income);
         document.getElementById('total-expense').textContent = formatCurrency(totals.expense);
         document.getElementById('total-receivable').textContent = formatCurrency(totals.receivable);
         document.getElementById('total-payable').textContent = formatCurrency(totals.payable);
-        document.getElementById('balance').className = `text-3xl font-bold mt-2 ${balance >= 0 ? 'text-gray-800' : 'text-red-600'}`;
+        dashboardEl.className = `text-3xl font-bold mt-2 ${balance >= 0 ? 'text-gray-800' : 'text-red-600'}`;
     }
     
     // --- MODAL AND TRANSACTION LOGIC ---
     function openTransactionModal(tx = null) {
-        const isEditing = tx !== null;
         const modalBackdrop = document.getElementById('transaction-modal-backdrop');
-        if (!modalBackdrop) {
-            console.error("¡Error crítico! El contenedor del modal ('transaction-modal-backdrop') no se encontró en el DOM.");
-            return;
-        }
         const modalContent = modalBackdrop.querySelector('.modal-content');
 
+        // If editing, bypass the choice and open the form directly
+        if(tx) {
+            _openTransactionForm(tx.type.includes('Cobrar') || tx.type.includes('Pagar') ? 'credit' : 'cash', tx);
+            return;
+        }
+
+        modalContent.innerHTML = `
+            <div class="text-center">
+                <h2 class="text-xl font-bold mb-6">¿Qué desea registrar?</h2>
+                <div class="space-y-4">
+                    <button id="choice-cash" class="choice-btn">
+                        <p class="font-semibold text-lg">Movimiento de Caja</p>
+                        <p class="text-sm text-gray-500">Registre un Ingreso o Egreso que ya ocurrió.</p>
+                    </button>
+                    <button id="choice-credit" class="choice-btn">
+                         <p class="font-semibold text-lg">Operación a Crédito</p>
+                        <p class="text-sm text-gray-500">Registre una cuenta a Cobrar o a Pagar.</p>
+                    </button>
+                </div>
+                 <button type="button" id="modal-cancel-btn" class="mt-6 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
+            </div>
+        `;
+        modalBackdrop.classList.add('active');
+
+        document.getElementById('choice-cash').addEventListener('click', () => _openTransactionForm('cash'));
+        document.getElementById('choice-credit').addEventListener('click', () => _openTransactionForm('credit'));
+        document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+        modalBackdrop.addEventListener('click', (e) => { if (e.target === modalBackdrop) closeModal(); });
+    }
+
+    function _openTransactionForm(formType, tx = null) {
+        const isEditing = tx !== null;
+        const modalBackdrop = document.getElementById('transaction-modal-backdrop');
+        const modalContent = modalBackdrop.querySelector('.modal-content');
         const categoryOptions = allData.categories.map(cat => `<option value="${cat}" ${tx?.category === cat ? 'selected' : ''}>${cat}</option>`).join('');
+        
+        let typeOptions;
+        if(formType === 'cash') {
+            typeOptions = `
+                <option value="Ingreso" ${tx?.type === 'Ingreso' ? 'selected' : ''}>Ingreso</option>
+                <option value="Egreso" ${tx?.type === 'Egreso' ? 'selected' : ''}>Egreso</option>
+            `;
+        } else { // credit
+             typeOptions = `
+                <option value="A Cobrar" ${tx?.type === 'A Cobrar' ? 'selected' : ''}>A Cobrar</option>
+                <option value="A Pagar" ${tx?.type === 'A Pagar' ? 'selected' : ''}>A Pagar</option>
+            `;
+        }
         
         const settledSectionVisibility = (tx?.type === 'A Cobrar' || tx?.type === 'A Pagar') ? '' : 'hidden';
 
         modalContent.innerHTML = `
             <h2 class="text-xl font-bold mb-4">${isEditing ? 'Editar' : 'Añadir'} Transacción</h2>
             <form id="transaction-form" class="space-y-4">
-                <div>
-                    <label for="tx-type" class="block text-sm font-medium">Tipo</label>
-                    <select id="tx-type" name="type" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="Ingreso" ${tx?.type === 'Ingreso' ? 'selected' : ''}>Ingreso</option>
-                        <option value="Egreso" ${tx?.type === 'Egreso' ? 'selected' : ''}>Egreso</option>
-                        <option value="A Cobrar" ${tx?.type === 'A Cobrar' ? 'selected' : ''}>A Cobrar</option>
-                        <option value="A Pagar" ${tx?.type === 'A Pagar' ? 'selected' : ''}>A Pagar</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="tx-description" class="block text-sm font-medium">Descripción</label>
-                    <input id="tx-description" type="text" name="description" value="${tx?.description || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
-                <div>
-                    <label for="tx-amount" class="block text-sm font-medium">Monto</label>
-                    <input id="tx-amount" type="number" name="amount" step="0.01" value="${tx?.amount || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
-                <div>
-                    <label for="tx-category" class="block text-sm font-medium">Categoría</label>
-                    <select id="tx-category" name="category" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">${categoryOptions}</select>
-                </div>
-                <div>
-                    <label for="tx-date" class="block text-sm font-medium">Fecha</label>
-                    <input id="tx-date" type="date" name="date" value="${tx?.date || new Date().toISOString().split('T')[0]}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
-                <div id="settled-section" class="${settledSectionVisibility}">
-                    <label class="flex items-center">
-                        <input type="checkbox" name="settled" ${tx?.settled ? 'checked' : ''} class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                        <span class="ml-2 text-sm text-gray-600">Liquidada</span>
-                    </label>
-                </div>
-                <div class="flex justify-end space-x-2 pt-4">
-                    <button type="button" id="modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
-                    <button type="submit" class="btn-primary">Guardar</button>
-                </div>
+                <div><label for="tx-type" class="block text-sm font-medium">Tipo</label><select id="tx-type" name="type" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">${typeOptions}</select></div>
+                <div><label for="tx-description" class="block text-sm font-medium">Descripción</label><input id="tx-description" type="text" name="description" value="${tx?.description || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
+                <div><label for="tx-amount" class="block text-sm font-medium">Monto</label><input id="tx-amount" type="number" name="amount" step="0.01" value="${tx?.amount || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
+                <div><label for="tx-category" class="block text-sm font-medium">Categoría</label><select id="tx-category" name="category" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">${categoryOptions}</select></div>
+                <div><label for="tx-date" class="block text-sm font-medium">Fecha</label><input id="tx-date" type="date" name="date" value="${tx?.date || new Date().toISOString().split('T')[0]}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
+                <div id="settled-section" class="${formType === 'credit' ? '' : 'hidden'}"><label class="flex items-center"><input type="checkbox" name="settled" ${tx?.settled ? 'checked' : ''} class="rounded border-gray-300 text-indigo-600 shadow-sm"><span class="ml-2 text-sm text-gray-600">Liquidada</span></label></div>
+                <div class="flex justify-end space-x-2 pt-4"><button type="button" id="modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button><button type="submit" class="btn-primary">Guardar</button></div>
             </form>
         `;
         modalBackdrop.classList.add('active');
 
-        const form = modalContent.querySelector('#transaction-form');
-        form.addEventListener('submit', (e) => handleSubmitTransaction(e, tx));
-        
-        const typeSelect = form.querySelector('select[name="type"]');
-        typeSelect.addEventListener('change', (e) => {
-            const settledSection = document.getElementById('settled-section');
-            if (e.target.value === 'A Cobrar' || e.target.value === 'A Pagar') {
-                settledSection.classList.remove('hidden');
-            } else {
-                settledSection.classList.add('hidden');
-            }
-        });
-
+        modalContent.querySelector('#transaction-form').addEventListener('submit', (e) => handleSubmitTransaction(e, tx));
         document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
-        modalBackdrop.addEventListener('click', (e) => {
-            if (e.target === modalBackdrop) closeModal();
-        });
     }
 
     function closeModal() {
@@ -582,7 +621,7 @@
             category: formData.get('category'),
             date: formData.get('date'),
             type: formData.get('type'),
-            settled: formData.get('type') === 'A Cobrar' || formData.get('type') === 'A Pagar' ? formData.has('settled') : undefined,
+            settled: ['A Cobrar', 'A Pagar'].includes(formData.get('type')) ? formData.has('settled') : undefined,
         };
 
         if (existingTx) {
@@ -593,138 +632,116 @@
         }
         
         allData.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-
         await saveDataToGist();
         closeModal();
         renderUI();
     }
     
-    // --- OTHER IMPLEMENTATIONS ---
     function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '') { 
         let filtered = [...source];
-        if (dateRange.start) {
-            filtered = filtered.filter(tx => tx.date >= dateRange.start);
-        }
-        if (dateRange.end) {
-            filtered = filtered.filter(tx => tx.date <= dateRange.end);
-        }
-        if (typeFilter) {
-            filtered = filtered.filter(tx => tx.type === typeFilter);
-        }
-        if (categoryFilter) {
-             filtered = filtered.filter(tx => tx.category === categoryFilter);
-        }
+        if (dateRange.start) filtered = filtered.filter(tx => tx.date >= dateRange.start);
+        if (dateRange.end) filtered = filtered.filter(tx => tx.date <= dateRange.end);
+        if (typeFilter) filtered = filtered.filter(tx => tx.type === typeFilter);
+        if (categoryFilter) filtered = filtered.filter(tx => tx.category === categoryFilter);
         return filtered;
     }
 
     function populateCategoryDropdowns() {
-        const categoryDropdowns = document.querySelectorAll('#filter-category, #budget-form select[name="category"], #recurring-form select[name="category"]');
-        categoryDropdowns.forEach(dropdown => {
-            if(!dropdown) return;
-            const currentValue = dropdown.value;
-            dropdown.innerHTML = `<option value="">${dropdown.id === 'filter-category' ? 'Todas' : 'Seleccionar categoría...'}</option>`;
-            allData.categories.forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat;
-                option.textContent = cat;
-                dropdown.appendChild(option);
+        document.querySelectorAll('#filter-category, #budget-form select[name="category"], #recurring-form select[name="category"]')
+            .forEach(dropdown => {
+                if(!dropdown) return;
+                const currentValue = dropdown.value;
+                dropdown.innerHTML = `<option value="">${dropdown.id === 'filter-category' ? 'Todas' : 'Seleccionar categoría...'}</option>`;
+                allData.categories.forEach(cat => dropdown.innerHTML += `<option value="${cat}">${cat}</option>`);
+                dropdown.value = currentValue;
             });
-            dropdown.value = currentValue;
-        });
     }
 
     function renderTable(transactions) {
         const tableBody = document.getElementById('transactions-table');
         const noTransactionsEl = document.getElementById('no-transactions');
-        if (!tableBody) return;
+        if (!tableBody || !noTransactionsEl) return;
 
-        if (transactions.length === 0) {
-            tableBody.innerHTML = '';
-            noTransactionsEl.classList.remove('hidden');
-            return;
-        }
-        noTransactionsEl.classList.add('hidden');
-        
+        noTransactionsEl.classList.toggle('hidden', transactions.length > 0);
         tableBody.innerHTML = transactions.map(tx => {
-            let typeClass = '';
-            switch(tx.type) {
-                case 'Ingreso': typeClass = 'bg-green-100 text-green-800'; break;
-                case 'Egreso': typeClass = 'bg-red-100 text-red-800'; break;
-                case 'A Cobrar': typeClass = 'bg-yellow-100 text-yellow-800'; break;
-                case 'A Pagar': typeClass = 'bg-orange-100 text-orange-800'; break;
+            const typeClasses = { 'Ingreso': 'bg-green-100 text-green-800', 'Egreso': 'bg-red-100 text-red-800', 'A Cobrar': 'bg-yellow-100 text-yellow-800', 'A Pagar': 'bg-orange-100 text-orange-800' };
+            let actionButtons = `<button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${tx.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button> <button class="delete-btn text-red-600 hover:text-red-900" data-id="${tx.id}" title="Eliminar"><i class="fas fa-trash"></i></button>`;
+            if ((tx.type === 'A Cobrar' || tx.type === 'A Pagar') && !tx.settled) {
+                const settleActionText = tx.type === 'A Cobrar' ? 'Cobrar' : 'Pagar';
+                actionButtons = `<button class="settle-btn bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-3 rounded-full" data-id="${tx.id}" title="Marcar como Liquidada"><i class="fas fa-check mr-1"></i> ${settleActionText}</button> ${actionButtons}`;
             }
-            return `
-                <tr class="bg-white border-b hover:bg-gray-50">
+            return `<tr class="bg-white border-b hover:bg-gray-50">
                     <td class="px-6 py-4">${dayjs(tx.date).format('DD/MM/YYYY')}</td>
                     <td class="px-6 py-4 font-medium text-gray-900">${tx.description}</td>
                     <td class="px-6 py-4">${tx.category}</td>
-                    <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${typeClass}">${tx.type} ${tx.settled ? '(L)' : ''}</span></td>
+                    <td class="px-6 py-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${typeClasses[tx.type]}">${tx.type} ${tx.settled ? '(Liquidada)' : ''}</span></td>
                     <td class="px-6 py-4 text-right font-semibold">${formatCurrency(tx.amount)}</td>
-                    <td class="px-6 py-4 text-center">
-                        <button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${tx.id}"><i class="fas fa-pencil-alt"></i></button>
-                        <button class="delete-btn text-red-600 hover:text-red-900 ml-4" data-id="${tx.id}"><i class="fas fa-trash"></i></button>
-                    </td>
+                    <td class="px-6 py-4 text-center"><div class="flex items-center justify-center space-x-3">${actionButtons}</div></td>
                 </tr>`;
         }).join('');
         
-        tableBody.querySelectorAll('.edit-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const txId = e.currentTarget.dataset.id;
-                const tx = allData.transactions.find(t => t.id === txId);
-                if (tx) openTransactionModal(tx);
-            });
-        });
-
-        tableBody.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const txId = e.currentTarget.dataset.id;
-                handleDeleteTransaction(txId);
-            });
-        });
+        tableBody.querySelectorAll('.settle-btn').forEach(btn => btn.addEventListener('click', e => handleSettleTransaction(e.currentTarget.dataset.id)));
+        tableBody.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', e => openTransactionModal(allData.transactions.find(t => t.id === e.currentTarget.dataset.id))));
+        tableBody.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', e => handleDeleteTransaction(e.currentTarget.dataset.id)));
     }
     
     async function handleDeleteTransaction(id) {
-       const confirmed = await showConfirmModal('¿Estás seguro?', 'Esta acción no se puede deshacer.');
-       if(confirmed) {
+       if(await showConfirmModal('¿Está seguro?', 'Esta acción no se puede deshacer.')) {
            allData.transactions = allData.transactions.filter(tx => tx.id !== id);
            await saveDataToGist();
            renderUI();
        }
     }
     
+    async function handleSettleTransaction(id) {
+        const originalTx = allData.transactions.find(t => t.id === id);
+        if (!originalTx) return;
+        const actionWord = originalTx.type === 'A Cobrar' ? 'cobro' : 'pago';
+        const newType = originalTx.type === 'A Cobrar' ? 'Ingreso' : 'Egreso';
+        if (await showConfirmModal(`Confirmar ${actionWord}`, `Esto marcará la transacción como liquidada y creará un nuevo ${newType} por ${formatCurrency(originalTx.amount)}. ¿Continuar?`)) {
+            originalTx.settled = true;
+            allData.transactions.push({
+                id: `tx_${new Date().getTime()}`,
+                description: `${newType}: ${originalTx.description}`,
+                amount: originalTx.amount,
+                category: originalTx.category,
+                date: new Date().toISOString().split('T')[0],
+                type: newType,
+                settledTxId: originalTx.id // Link to original transaction
+            });
+            allData.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+            await saveDataToGist();
+            renderUI();
+        }
+    }
+
     function showConfirmModal(title, message) {
         return new Promise((resolve) => {
             const backdrop = document.getElementById('confirm-modal-backdrop');
             document.getElementById('confirm-modal-title').textContent = title;
             document.getElementById('confirm-modal-message').textContent = message;
-            
             const cancelBtn = document.getElementById('confirm-modal-cancel-btn');
             const confirmBtn = document.getElementById('confirm-modal-confirm-btn');
-
             const close = (value) => {
                 backdrop.classList.remove('active');
                 cancelBtn.removeEventListener('click', onCancel);
                 confirmBtn.removeEventListener('click', onConfirm);
                 resolve(value);
             };
-
             const onCancel = () => close(false);
             const onConfirm = () => close(true);
-
             cancelBtn.addEventListener('click', onCancel, { once: true });
             confirmBtn.addEventListener('click', onConfirm, { once: true });
-            
             backdrop.classList.add('active');
         });
     }
 
     function handleResetConfig() {
-        showConfirmModal('¿Borrar Configuración?', 'Tendrás que volver a introducir tu Token y Gist ID. Los datos en GitHub no se borrarán.')
+        showConfirmModal('¿Borrar Configuración?', 'Tendrá que volver a introducir su Token y Gist ID. Los datos en su Gist no se borrarán.')
             .then(confirmed => {
                 if (confirmed) {
                     localStorage.removeItem('GITHUB_TOKEN');
                     localStorage.removeItem('GIST_ID');
-                    localStorage.removeItem('GIST_FILENAME');
                     window.location.reload();
                 }
             });
@@ -734,14 +751,8 @@
         const icon = document.getElementById('status-icon');
         const textEl = document.getElementById('status-text');
         if(!icon || !textEl) return;
-        
-        icon.className = 'fas fa-circle mr-2 ';
-        switch(status){
-            case 'ok': icon.classList.add('text-green-500'); break;
-            case 'error': icon.classList.add('text-red-500'); break;
-            case 'loading': icon.classList.add('text-yellow-500', 'animate-pulse'); break;
-            default: icon.classList.add('text-gray-400');
-        }
+        const statusClasses = { ok: 'text-green-500', error: 'text-red-500', loading: 'text-yellow-500 animate-pulse', default: 'text-gray-400' };
+        icon.className = `fas fa-circle mr-2 ${statusClasses[status] || statusClasses.default}`;
         textEl.textContent = text;
     }
     
@@ -749,15 +760,9 @@
         return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value || 0); 
     }
     
-    // --- Chart and Settings Implementations ---
-    function destroyChart(chartInstance) {
-        if (chartInstance) {
-            chartInstance.destroy();
-        }
-    }
+    function destroyChart(chartInstance) { if (chartInstance) chartInstance.destroy(); }
 
     function renderDashboardCharts(transactions) {
-        // Expenses by Category (Doughnut)
         const expensesCtx = document.getElementById('dashboardExpensesChart')?.getContext('2d');
         if (expensesCtx) {
             destroyChart(dashboardExpensesChart);
@@ -766,20 +771,8 @@
                 acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
                 return acc;
             }, {});
-            dashboardExpensesChart = new Chart(expensesCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(expensesByCategory),
-                    datasets: [{
-                        data: Object.values(expensesByCategory),
-                        backgroundColor: CHART_COLORS,
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-            });
+            dashboardExpensesChart = new Chart(expensesCtx, { type: 'doughnut', data: { labels: Object.keys(expensesByCategory), datasets: [{ data: Object.values(expensesByCategory), backgroundColor: CHART_COLORS }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
         }
-
-        // Monthly Summary (Bar)
         const monthlyCtx = document.getElementById('dashboardMonthlyChart')?.getContext('2d');
         if (monthlyCtx) {
             destroyChart(dashboardMonthlyChart);
@@ -791,68 +784,69 @@
                 return acc;
             }, {});
             const sortedMonths = Object.keys(monthlyData).sort();
-            dashboardMonthlyChart = new Chart(monthlyCtx, {
-                type: 'bar',
-                data: {
-                    labels: sortedMonths.map(m => dayjs(m).format('MMM YY')),
-                    datasets: [
-                        { label: 'Ingresos', data: sortedMonths.map(m => monthlyData[m].income), backgroundColor: '#10b981' },
-                        { label: 'Egresos', data: sortedMonths.map(m => monthlyData[m].expense), backgroundColor: '#ef4444' }
-                    ]
-                },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-            });
+            dashboardMonthlyChart = new Chart(monthlyCtx, { type: 'bar', data: { labels: sortedMonths.map(m => dayjs(m).format('MMM YY')), datasets: [{ label: 'Ingresos', data: sortedMonths.map(m => monthlyData[m].income), backgroundColor: '#10b981' }, { label: 'Egresos', data: sortedMonths.map(m => monthlyData[m].expense), backgroundColor: '#ef4444' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } });
         }
     }
     
     function renderDashboardBudgets() {
         const container = document.getElementById('budgets-summary-list');
         if (!container) return;
-
-        const currentMonthExpenses = filterTransactions(allData.transactions, getDashboardDateRange('currentMonth'))
-            .filter(tx => tx.type === 'Egreso')
-            .reduce((acc, tx) => {
-                acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-                return acc;
-            }, {});
-
+        const currentMonthExpenses = filterTransactions(allData.transactions, getDashboardDateRange('currentMonth')).filter(tx => tx.type === 'Egreso').reduce((acc, tx) => { acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc; }, {});
         if (Object.keys(allData.budgets).length === 0) {
-            container.innerHTML = `<p class="text-gray-500">No hay presupuestos definidos. Ve a Configuración para añadir uno.</p>`;
+            container.innerHTML = `<p class="text-gray-500">No hay presupuestos definidos. Vaya a Configuración para añadir uno.</p>`;
             return;
         }
-
         container.innerHTML = Object.entries(allData.budgets).map(([category, limit]) => {
             const spent = currentMonthExpenses[category] || 0;
             const percentage = limit > 0 ? (spent / limit) * 100 : 0;
             const progressBarColor = percentage > 100 ? 'bg-red-500' : (percentage > 75 ? 'bg-yellow-500' : 'bg-green-500');
-            
-            return `
-                <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="font-medium text-gray-700">${category}</span>
-                        <span class="text-sm text-gray-500">${formatCurrency(spent)} / ${formatCurrency(limit)}</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2.5">
-                        <div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
-                    </div>
-                </div>
-            `;
+            return `<div><div class="flex justify-between items-center mb-1"><span class="font-medium text-gray-700">${category}</span><span class="text-sm text-gray-500">${formatCurrency(spent)} / ${formatCurrency(limit)}</span></div><div class="w-full bg-gray-200 rounded-full h-2.5"><div class="${progressBarColor} h-2.5 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div></div></div>`;
         }).join('');
     }
 
-    function getDashboardDateRange(preset = null) { 
+    function getDashboardDateRange(preset) { 
         const filter = preset || document.getElementById('dashboard-period-filter')?.value || 'currentMonth';
         const now = dayjs();
         switch (filter) {
             case 'currentMonth': return { start: now.startOf('month').format('YYYY-MM-DD'), end: now.endOf('month').format('YYYY-MM-DD') };
             case 'lastMonth': return { start: now.subtract(1, 'month').startOf('month').format('YYYY-MM-DD'), end: now.subtract(1, 'month').endOf('month').format('YYYY-MM-DD') };
             case 'currentYear': return { start: now.startOf('year').format('YYYY-MM-DD'), end: now.endOf('year').format('YYYY-MM-DD') };
-            case 'allTime': return {};
+            default: return {};
         }
-        return {};
     }
     
-    function renderReportCharts(transactions) { /* Similar implementation to dashboard charts but for the reports view */ }
+    function renderReportCharts(transactions) {
+        const buildChart = (elementId, chartVar, type, data, options) => {
+            const ctx = document.getElementById(elementId)?.getContext('2d');
+            if (ctx) {
+                destroyChart(window[chartVar]);
+                window[chartVar] = new Chart(ctx, { type, data, options });
+            }
+        };
+
+        const incomeByCategory = transactions.filter(tx => tx.type === 'Ingreso').reduce((acc, tx) => { acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc; }, {});
+        buildChart('reportsIncomeChart', 'reportsIncomeChart', 'pie', { labels: Object.keys(incomeByCategory), datasets: [{ data: Object.values(incomeByCategory), backgroundColor: CHART_COLORS }] }, { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } });
+
+        const expensesByCategory = transactions.filter(tx => tx.type === 'Egreso').reduce((acc, tx) => { acc[tx.category] = (acc[tx.category] || 0) + tx.amount; return acc; }, {});
+        buildChart('reportsExpensesChart', 'reportsExpensesChart', 'pie', { labels: Object.keys(expensesByCategory), datasets: [{ data: Object.values(expensesByCategory), backgroundColor: CHART_COLORS }] }, { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } });
+
+        const topExpensesContainer = document.getElementById('reportsTopExpenses');
+        if(topExpensesContainer) {
+            const top5 = Object.entries(expensesByCategory).sort((a,b) => b[1] - a[1]).slice(0, 5);
+            topExpensesContainer.innerHTML = top5.length ? top5.map(([cat, amount]) => `<li class="flex justify-between items-center bg-gray-50 p-2 rounded"><span>${cat}</span><span class="font-semibold">${formatCurrency(amount)}</span></li>`).join('') : `<p class="text-gray-500">No hay datos de egresos.</p>`;
+        }
+        
+        const balanceByCategory = allData.categories.reduce((acc, cat) => { acc[cat] = (incomeByCategory[cat] || 0) - (expensesByCategory[cat] || 0); return acc; }, {});
+        buildChart('reportsBalanceByCategoryChart', 'reportsBalanceByCategoryChart', 'bar', { labels: Object.keys(balanceByCategory), datasets: [{ label: 'Balance Neto', data: Object.values(balanceByCategory), backgroundColor: Object.values(balanceByCategory).map(v => v >= 0 ? '#10b981' : '#ef4444') }] }, { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } });
+
+        const balanceEvolution = transactions.filter(tx => tx.type === 'Ingreso' || tx.type === 'Egreso').sort((a,b) => new Date(a.date) - new Date(b.date));
+        let runningBalance = 0;
+        const evolutionData = balanceEvolution.map(tx => {
+            runningBalance += tx.type === 'Ingreso' ? tx.amount : -tx.amount;
+            return { x: tx.date, y: runningBalance };
+        });
+        buildChart('reportsBalanceEvolutionChart', 'reportsBalanceEvolutionChart', 'line', { datasets: [{ label: 'Balance', data: evolutionData, borderColor: '#4f46e5', fill: false, tension: 0.1 }] }, { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'day' } }, y: { beginAtZero: true } } });
+    }
     
     async function handleAddCategory(e) {
         e.preventDefault();
@@ -869,24 +863,15 @@
     function renderCategoryManagementList() {
         const list = document.getElementById('category-list-management');
         if (!list) return;
-        list.innerHTML = allData.categories.map(cat => `
-            <li class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                <span>${cat}</span>
-                <button class="delete-category-btn text-red-500 hover:text-red-700" data-category="${cat}"><i class="fas fa-times-circle"></i></button>
-            </li>
-        `).join('');
-
-        list.querySelectorAll('.delete-category-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const category = e.currentTarget.dataset.category;
-                const confirmed = await showConfirmModal('Eliminar Categoría', `¿Seguro que quieres eliminar "${category}"?`);
-                if (confirmed) {
-                    allData.categories = allData.categories.filter(c => c !== category);
-                    await saveDataToGist();
-                    renderUI();
-                }
-            });
-        });
+        list.innerHTML = allData.categories.map(cat => `<li class="flex justify-between items-center bg-gray-50 p-2 rounded"><span>${cat}</span><button class="delete-category-btn text-red-500 hover:text-red-700" data-category="${cat}"><i class="fas fa-times-circle"></i></button></li>`).join('');
+        list.querySelectorAll('.delete-category-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+            const category = e.currentTarget.dataset.category;
+            if (await showConfirmModal('Eliminar Categoría', `¿Seguro que quiere eliminar "${category}"?`)) {
+                allData.categories = allData.categories.filter(c => c !== category);
+                await saveDataToGist();
+                renderUI();
+            }
+        }));
     }
 
     async function handleBudgetForm(e) {
@@ -905,28 +890,82 @@
     function renderBudgetList() {
         const list = document.getElementById('budget-list');
         if (!list) return;
-        list.innerHTML = Object.entries(allData.budgets).map(([cat, amount]) => `
-            <li class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                <span>${cat}: ${formatCurrency(amount)}</span>
-                <button class="delete-budget-btn text-red-500 hover:text-red-700" data-category="${cat}"><i class="fas fa-times-circle"></i></button>
-            </li>
-        `).join('');
-
-        list.querySelectorAll('.delete-budget-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const category = e.currentTarget.dataset.category;
-                 const confirmed = await showConfirmModal('Eliminar Presupuesto', `¿Seguro que quieres eliminar el presupuesto para "${category}"?`);
-                if (confirmed) {
-                    delete allData.budgets[category];
-                    await saveDataToGist();
-                    renderUI();
-                }
-            });
-        });
+        list.innerHTML = Object.entries(allData.budgets).map(([cat, amount]) => `<li class="flex justify-between items-center bg-gray-50 p-2 rounded"><span>${cat}: ${formatCurrency(amount)}</span><button class="delete-budget-btn text-red-500 hover:text-red-700" data-category="${cat}"><i class="fas fa-times-circle"></i></button></li>`).join('');
+        list.querySelectorAll('.delete-budget-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+            const category = e.currentTarget.dataset.category;
+            if (await showConfirmModal('Eliminar Presupuesto', `¿Seguro que quiere eliminar el presupuesto para "${category}"?`)) {
+                delete allData.budgets[category];
+                await saveDataToGist();
+                renderUI();
+            }
+        }));
     }
     
-    async function handleRecurringForm(e) { /* Stub */ }
-    function renderRecurringList() { /* Stub */ }
+    async function handleRecurringForm(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const newRecurring = {
+            id: `rec_${new Date().getTime()}`,
+            description: formData.get('description'),
+            amount: parseFloat(formData.get('amount')),
+            category: formData.get('category'),
+            type: formData.get('type'),
+            frequency: formData.get('frequency'),
+            nextDate: formData.get('nextDate'),
+        };
+        allData.recurring.push(newRecurring);
+        await saveDataToGist();
+        renderUI();
+        e.target.reset();
+    }
+
+    function renderRecurringList() {
+        const list = document.getElementById('recurring-list');
+        if (!list) return;
+        list.innerHTML = allData.recurring.map(rec => `
+            <li class="flex justify-between items-center bg-gray-50 p-3 rounded">
+                <div>
+                    <p class="font-semibold">${rec.description} (${rec.type})</p>
+                    <p class="text-sm text-gray-600">${formatCurrency(rec.amount)} - Próxima: ${dayjs(rec.nextDate).format('DD/MM/YYYY')}</p>
+                </div>
+                <button class="delete-recurring-btn text-red-500 hover:text-red-700" data-id="${rec.id}"><i class="fas fa-times-circle"></i></button>
+            </li>`).join('');
+        list.querySelectorAll('.delete-recurring-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+            const id = e.currentTarget.dataset.id;
+            if (await showConfirmModal('Eliminar Recurrente', '¿Está seguro de que quiere eliminar esta transacción recurrente?')) {
+                allData.recurring = allData.recurring.filter(r => r.id !== id);
+                await saveDataToGist();
+                renderUI();
+            }
+        }));
+    }
+
+    async function processRecurringTransactions() {
+        const today = dayjs().startOf('day');
+        let transactionsAdded = false;
+        
+        allData.recurring.forEach(rec => {
+            let nextDate = dayjs(rec.nextDate);
+            while (nextDate.isSameOrBefore(today)) {
+                allData.transactions.push({
+                    id: `tx_${new Date().getTime()}`,
+                    description: `(Recurrente) ${rec.description}`,
+                    amount: rec.amount,
+                    category: rec.category,
+                    date: nextDate.format('YYYY-MM-DD'),
+                    type: rec.type,
+                });
+                transactionsAdded = true;
+                nextDate = rec.frequency === 'monthly' ? nextDate.add(1, 'month') : nextDate.add(1, 'week');
+            }
+            rec.nextDate = nextDate.format('YYYY-MM-DD');
+        });
+
+        if (transactionsAdded) {
+            allData.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+            await saveDataToGist();
+        }
+    }
 
 </script>
 </body>
