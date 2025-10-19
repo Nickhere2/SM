@@ -269,6 +269,7 @@
     let allData = {
         transactions: [],
         categories: ["Ventas", "Servicios", "Sueldos", "Alquiler", "Insumos", "Impuestos", "Otros"],
+        clients: [],
         recurring: [],
         budgets: {},
         meta: { lastRecurringCheck: null }
@@ -300,13 +301,14 @@
             <div id="dashboard-budgets-summary" class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Resumen de Presupuestos (Mes Actual)</h3><div id="budgets-summary-list" class="space-y-4"></div></div>`,
         transactions: `
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Libro Diario de Transacciones</h1><p class="text-gray-500 mb-6">Busque y gestione todos sus movimientos.</p>
-            <div class="card mb-6"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-                <div><label for="filter-start-date" class="text-sm font-medium">Fecha Desde</label><input type="date" id="filter-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"></div>
-                <div><label for="filter-end-date" class="text-sm font-medium">Fecha Hasta</label><input type="date" id="filter-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"></div>
-                <div><label for="filter-type" class="text-sm font-medium">Tipo</label><select id="filter-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"><option value="">Todos</option><option value="Ingreso">Ingreso</option><option value="Egreso">Egreso</option><option value="A Cobrar">A Cobrar</option><option value="A Pagar">A Pagar</option></select></div>
-                <div><label for="filter-category" class="text-sm font-medium">Categoría</label><select id="filter-category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 filter-control"><option value="">Todas</option></select></div>
+            <div class="card mb-6"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div><label for="filter-start-date" class="text-sm font-medium">Fecha Desde</label><input type="date" id="filter-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm filter-control"></div>
+                <div><label for="filter-end-date" class="text-sm font-medium">Fecha Hasta</label><input type="date" id="filter-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm filter-control"></div>
+                <div><label for="filter-type" class="text-sm font-medium">Tipo</label><select id="filter-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm filter-control"><option value="">Todos</option><option value="Ingreso">Ingreso</option><option value="Egreso">Egreso</option><option value="A Cobrar">A Cobrar</option><option value="A Pagar">A Pagar</option></select></div>
+                <div><label for="filter-category" class="text-sm font-medium">Categoría</label><select id="filter-category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm filter-control"><option value="">Todas</option></select></div>
+                <div><label for="filter-client" class="text-sm font-medium">Cliente/Proveedor</label><select id="filter-client" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm filter-control"><option value="">Todos</option></select></div>
             </div></div>
-            <div class="card"><div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b-2 border-gray-200"><tr><th class="px-6 py-3">Fecha</th><th class="px-6 py-3">Descripción</th><th class="px-6 py-3">Categoría</th><th class="px-6 py-3">Tipo/Estado</th><th class="px-6 py-3 text-right">Monto</th><th class="px-6 py-3 text-center">Acciones</th></tr></thead><tbody id="transactions-table"></tbody></table><p id="no-transactions" class="text-center text-gray-500 py-8">No hay transacciones que coincidan con los filtros.</p></div></div>`,
+            <div class="card"><div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b-2 border-gray-200"><tr><th class="px-6 py-3">Fecha</th><th class="px-6 py-3">Descripción</th><th class="px-6 py-3">Cliente/Proveedor</th><th class="px-6 py-3">Categoría</th><th class="px-6 py-3">Tipo/Estado</th><th class="px-6 py-3 text-right">Monto</th><th class="px-6 py-3 text-center">Acciones</th></tr></thead><tbody id="transactions-table"></tbody></table><p id="no-transactions" class="text-center text-gray-500 py-8">No hay transacciones que coincidan con los filtros.</p></div></div>`,
         reports: `
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Informes Contables</h1><p class="text-gray-500 mb-6">Analice sus datos financieros con filtros personalizados.</p>
             <div class="card mb-6"><div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
@@ -322,10 +324,11 @@
                 <div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Balance Neto por Categoría</h3><div class="h-80 flex items-center justify-center"><canvas id="reportsBalanceByCategoryChart"></canvas></div></div>
             </div>`,
         settings: `
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Configuración</h1><p class="text-gray-500 mb-6">Gestione categorías, presupuestos y transacciones recurrentes.</p>
-            <div class="border-b border-gray-200 mb-6"><nav class="flex space-x-2" id="settings-tabs"><button class="tab-btn active" data-tab="categories">Categorías</button><button class="tab-btn" data-tab="budgets">Presupuestos</button><button class="tab-btn" data-tab="recurring">Recurrentes</button><button class="tab-btn" data-tab="connection">Conexión</button></nav></div>
-            <div id="settings-content-categories"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Categoría</h3><form id="add-category-form" class="flex space-x-2"><label for="new-category-name" class="sr-only">Nombre de la categoría</label><input type="text" id="new-category-name" placeholder="Nombre de la categoría" class="flex-grow block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><button type="submit" class="btn-primary whitespace-nowrap">Añadir</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Categorías</h3><ul id="category-list-management" class="space-y-2"></ul></div></div></div>
-            <div id="settings-content-budgets" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Definir Presupuesto</h3><form id="budget-form" class="space-y-4"><div><label for="budget-category" class="block text-sm font-medium text-gray-700">Categoría</label><select id="budget-category" name="category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Seleccionar categoría...</option></select></div><div><label for="budget-amount" class="block text-sm font-medium text-gray-700">Límite Mensual</label><input id="budget-amount" type="number" step="0.01" name="amount" placeholder="Límite mensual" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div><button type="submit" class="btn-primary w-full">Guardar Presupuesto</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Presupuestos</h3><ul id="budget-list" class="space-y-2"></ul></div></div></div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Configuración</h1><p class="text-gray-500 mb-6">Gestione categorías, clientes, presupuestos y transacciones recurrentes.</p>
+            <div class="border-b border-gray-200 mb-6"><nav class="flex space-x-2" id="settings-tabs"><button class="tab-btn active" data-tab="categories">Categorías</button><button class="tab-btn" data-tab="clients">Clientes</button><button class="tab-btn" data-tab="budgets">Presupuestos</button><button class="tab-btn" data-tab="recurring">Recurrentes</button><button class="tab-btn" data-tab="connection">Conexión</button></nav></div>
+            <div id="settings-content-categories"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nueva Categoría</h3><form id="add-category-form" class="flex space-x-2"><label for="new-category-name" class="sr-only">Nombre de la categoría</label><input type="text" id="new-category-name" placeholder="Nombre de la categoría" class="flex-grow block w-full border-gray-300 rounded-md shadow-sm" required><button type="submit" class="btn-primary whitespace-nowrap">Añadir</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Categorías</h3><ul id="category-list-management" class="space-y-2"></ul></div></div></div>
+            <div id="settings-content-clients" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Nuevo Cliente/Proveedor</h3><form id="add-client-form" class="flex space-x-2"><label for="new-client-name" class="sr-only">Nombre del Cliente/Proveedor</label><input type="text" id="new-client-name" placeholder="Nombre del Cliente/Proveedor" class="flex-grow block w-full border-gray-300 rounded-md shadow-sm" required><button type="submit" class="btn-primary whitespace-nowrap">Añadir</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Clientes/Proveedores</h3><ul id="client-list-management" class="space-y-2"></ul></div></div></div>
+            <div id="settings-content-budgets" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Definir Presupuesto</h3><form id="budget-form" class="space-y-4"><div><label for="budget-category" class="block text-sm font-medium text-gray-700">Categoría</label><select id="budget-category" name="category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="">Seleccionar categoría...</option></select></div><div><label for="budget-amount" class="block text-sm font-medium text-gray-700">Límite Mensual</label><input id="budget-amount" type="number" step="0.01" name="amount" placeholder="Límite mensual" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div><button type="submit" class="btn-primary w-full">Guardar Presupuesto</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Mis Presupuestos</h3><ul id="budget-list" class="space-y-2"></ul></div></div></div>
             <div id="settings-content-recurring" class="hidden"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Añadir Transacción Recurrente</h3><form id="recurring-form" class="space-y-4"><div><label for="recurring-description" class="block text-sm font-medium">Descripción</label><input id="recurring-description" type="text" name="description" placeholder="Ej: Alquiler Oficina" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div><div><label for="recurring-category" class="block text-sm font-medium">Categoría</label><select id="recurring-category" name="category" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="">Seleccionar categoría...</option></select></div><div><label for="recurring-amount" class="block text-sm font-medium">Monto</label><input id="recurring-amount" type="number" step="0.01" name="amount" placeholder="Monto" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div><div><label for="recurring-type" class="block text-sm font-medium">Tipo</label><select id="recurring-type" name="type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="Ingreso">Ingreso</option><option value="Egreso">Egreso</option></select></div><div><label for="recurring-frequency" class="block text-sm font-medium">Frecuencia</label><select id="recurring-frequency" name="frequency" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="monthly">Mensual</option><option value="weekly">Semanal</option></select></div><div><label for="recurring-startDate" class="block text-sm font-medium">Fecha de Próxima Ejecución</label><input id="recurring-startDate" type="date" name="nextDate" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div><button type="submit" class="btn-primary w-full">Guardar Recurrente</button></form></div><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Transacciones Recurrentes Definidas</h3><ul id="recurring-list" class="space-y-2"></ul></div></div></div>
             <div id="settings-content-connection" class="hidden"><div class="card"><h3 class="text-lg font-semibold text-gray-700 mb-4">Configuración de Conexión</h3><p class="text-sm text-gray-600 mb-4">Aquí puede borrar la configuración guardada en este navegador para conectar con otro Gist de GitHub.</p><button id="reset-config-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">Borrar Configuración</button></div></div>`
     };
@@ -388,18 +391,19 @@
                     const tabName = e.target.dataset.tab;
                     document.querySelectorAll('#settings-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
                     e.target.classList.add('active');
-                    ['categories', 'budgets', 'recurring', 'connection'].forEach(content => {
+                    ['categories', 'clients', 'budgets', 'recurring', 'connection'].forEach(content => {
                         document.getElementById(`settings-content-${content}`)?.classList.toggle('hidden', content !== tabName);
                     });
                 }
             });
             document.getElementById('add-category-form')?.addEventListener('submit', handleAddCategory);
+            document.getElementById('add-client-form')?.addEventListener('submit', handleAddClient);
             document.getElementById('budget-form')?.addEventListener('submit', handleBudgetForm);
             document.getElementById('recurring-form')?.addEventListener('submit', handleRecurringForm);
             document.getElementById('reset-config-btn')?.addEventListener('click', handleResetConfig);
         }
         
-        document.querySelectorAll('#dashboard-period-filter, #reports-start-date, #reports-end-date, #filter-start-date, #filter-end-date, #filter-type, #filter-category')
+        document.querySelectorAll('#dashboard-period-filter, #reports-start-date, #reports-end-date, #filter-start-date, #filter-end-date, #filter-type, #filter-category, #filter-client')
             .forEach(filter => filter?.addEventListener('change', renderUI));
     }
 
@@ -416,10 +420,13 @@
             renderDashboardBudgets();
         } else if (activeView === 'transactions') {
             populateCategoryDropdowns();
-            const filtered = filterTransactions(allData.transactions, { 
-                start: document.getElementById('filter-start-date').value, 
-                end: document.getElementById('filter-end-date').value 
-            }, document.getElementById('filter-type').value, document.getElementById('filter-category').value);
+            populateClientDropdowns();
+            const filtered = filterTransactions(allData.transactions, 
+                { start: document.getElementById('filter-start-date').value, end: document.getElementById('filter-end-date').value }, 
+                document.getElementById('filter-type').value, 
+                document.getElementById('filter-category').value,
+                document.getElementById('filter-client').value
+            );
             renderTable(filtered);
         } else if (activeView === 'reports') {
             const filtered = filterTransactions(allData.transactions, { 
@@ -430,6 +437,7 @@
         } else if (activeView === 'settings') {
             populateCategoryDropdowns();
             renderCategoryManagementList();
+            renderClientManagementList();
             renderBudgetList();
             renderRecurringList();
         }
@@ -498,6 +506,7 @@
             }
            
             if (!allData.meta) allData.meta = { lastRecurringCheck: null };
+            if (!allData.clients) allData.clients = [];
             updateConnectionStatus("ok", "Conectado a GitHub");
         } catch (error) {
             console.error(error);
@@ -593,6 +602,7 @@
         const modalBackdrop = document.getElementById('transaction-modal-backdrop');
         const modalContent = modalBackdrop.querySelector('.modal-content');
         const categoryOptions = allData.categories.map(cat => `<option value="${cat}" ${tx?.category === cat ? 'selected' : ''}>${cat}</option>`).join('');
+        const clientOptions = allData.clients.map(c => `<option value="${c}"></option>`).join('');
         
         let typeOptions;
         if(formType === 'cash') {
@@ -612,6 +622,7 @@
             <form id="transaction-form" class="space-y-4">
                 <input type="hidden" name="formType" value="${formType}">
                 <div><label for="tx-type" class="block text-sm font-medium">Tipo</label><select id="tx-type" name="type" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">${typeOptions}</select></div>
+                <div><label for="tx-client" class="block text-sm font-medium">Cliente / Proveedor</label><input id="tx-client" type="text" name="client" value="${tx?.client || ''}" list="client-list" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"><datalist id="client-list">${clientOptions}</datalist></div>
                 <div><label for="tx-description" class="block text-sm font-medium">Descripción</label><input id="tx-description" type="text" name="description" value="${tx?.description || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
                 <div><label for="tx-amount" class="block text-sm font-medium">Monto</label><input id="tx-amount" type="number" name="amount" step="0.01" value="${tx?.amount || ''}" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></div>
                 <div><label for="tx-category" class="block text-sm font-medium">Categoría</label><select id="tx-category" name="category" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">${categoryOptions}</select></div>
@@ -651,7 +662,7 @@
             <div class="flex justify-between items-start">
                 <div>
                     <h2 class="text-xl font-bold mb-1">Registrar Cobro / Pago</h2>
-                    <p class="text-gray-600 mb-4 text-sm">Para: <span class="font-semibold">${originalTx.description}</span></p>
+                    <p class="text-gray-600 mb-4 text-sm">Para: <span class="font-semibold">${originalTx.description}</span>${originalTx.client ? ` | Cliente: <span class="font-semibold">${originalTx.client}</span>` : ''}</p>
                 </div>
                 <button id="modal-close-btn" class="text-gray-400 hover:text-gray-600">&times;</button>
             </div>
@@ -718,6 +729,7 @@
             description: `${newType === 'Ingreso' ? 'Cobro' : 'Pago'}: ${originalTx.description}`,
             amount: paymentAmount,
             category: originalTx.category,
+            client: originalTx.client,
             date: paymentDate,
             type: newType,
             originalInvoiceId: originalTx.id
@@ -753,6 +765,7 @@
         e.preventDefault();
         const formData = new FormData(e.target);
         const formType = formData.get('formType');
+        const clientName = formData.get('client').trim();
 
         const transactionData = {
             id: existingTx?.id || `tx_${new Date().getTime()}`,
@@ -761,7 +774,13 @@
             category: formData.get('category'),
             date: formData.get('date'),
             type: formData.get('type'),
+            client: clientName,
         };
+        
+        if (clientName && !allData.clients.includes(clientName)) {
+            allData.clients.push(clientName);
+            allData.clients.sort();
+        }
 
         if(formType === 'credit') {
             transactionData.status = 'Pendiente';
@@ -787,12 +806,13 @@
         renderUI();
     }
     
-    function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '') { 
+    function filterTransactions(source, dateRange, typeFilter = '', categoryFilter = '', clientFilter = '') { 
         let filtered = [...source];
         if (dateRange.start) filtered = filtered.filter(tx => tx.date >= dateRange.start);
         if (dateRange.end) filtered = filtered.filter(tx => tx.date <= dateRange.end);
         if (typeFilter) filtered = filtered.filter(tx => tx.type === typeFilter);
         if (categoryFilter) filtered = filtered.filter(tx => tx.category === categoryFilter);
+        if (clientFilter) filtered = filtered.filter(tx => tx.client === clientFilter);
         return filtered;
     }
 
@@ -806,6 +826,16 @@
                 dropdown.value = currentValue;
             });
     }
+    
+    function populateClientDropdowns() {
+        const dropdown = document.getElementById('filter-client');
+        if (!dropdown) return;
+        const currentValue = dropdown.value;
+        dropdown.innerHTML = `<option value="">Todos</option>`;
+        allData.clients.forEach(c => dropdown.innerHTML += `<option value="${c}">${c}</option>`);
+        dropdown.value = currentValue;
+    }
+
 
     function renderTable(transactions) {
         const tableBody = document.getElementById('transactions-table');
@@ -845,6 +875,7 @@
             return `<tr class="bg-white border-b hover:bg-gray-50">
                     <td class="px-6 py-4">${dayjs(tx.date).format('DD/MM/YYYY')}</td>
                     <td class="px-6 py-4 font-medium text-gray-900">${tx.description}</td>
+                    <td class="px-6 py-4 text-gray-600">${tx.client || '-'}</td>
                     <td class="px-6 py-4">${tx.category}</td>
                     <td class="px-6 py-4">${statusBadges[statusKey] || tx.type}</td>
                     <td class="px-6 py-4 text-right font-semibold">${formatCurrency(tx.amount)}</td>
@@ -1028,6 +1059,7 @@
         const newCategory = input.value.trim();
         if (newCategory && !allData.categories.includes(newCategory)) {
             allData.categories.push(newCategory);
+            allData.categories.sort();
             await saveDataToGist();
             renderUI();
             input.value = '';
@@ -1047,6 +1079,34 @@
             }
         }));
     }
+    
+    async function handleAddClient(e) {
+        e.preventDefault();
+        const input = document.getElementById('new-client-name');
+        const newClient = input.value.trim();
+        if (newClient && !allData.clients.includes(newClient)) {
+            allData.clients.push(newClient);
+            allData.clients.sort();
+            await saveDataToGist();
+            renderUI();
+            input.value = '';
+        }
+    }
+
+    function renderClientManagementList() {
+        const list = document.getElementById('client-list-management');
+        if (!list) return;
+        list.innerHTML = allData.clients.map(c => `<li class="flex justify-between items-center bg-gray-50 p-2 rounded"><span>${c}</span><button class="delete-client-btn text-red-500 hover:text-red-700" data-client="${c}"><i class="fas fa-times-circle"></i></button></li>`).join('');
+        list.querySelectorAll('.delete-client-btn').forEach(btn => btn.addEventListener('click', async (e) => {
+            const client = e.currentTarget.dataset.client;
+            if (await showConfirmModal('Eliminar Cliente/Proveedor', `¿Seguro que quiere eliminar a "${client}"?`)) {
+                allData.clients = allData.clients.filter(c => c !== client);
+                await saveDataToGist();
+                renderUI();
+            }
+        }));
+    }
+
 
     async function handleBudgetForm(e) {
         e.preventDefault();
